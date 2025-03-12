@@ -69,6 +69,82 @@ def nbr(self) -> ee.Image:
 ee.Image.nbr = nbr
 
 
+def kt_transform(self: ee.Image) -> ee.Image:
+    '''
+    Calculate the brightness, greenness, and wetness using the Kauth-Thomas transform.
+
+    Args:
+    self: ee.Image - The input image
+
+    Returns:
+    ee.Image - The image with the brightness, greenness, and wetness bands added
+
+    Reference:
+    [1] R. Nedkov, “ORTHOGONAL TRANSFORMATION OF SEGMENTED IMAGES FROM THE SATELLITE SENTINEL-2,” 2017.
+    '''
+    brightness = self.expression(
+        '0.0356 * B1 + 0.0822 * B2 + 0.1360 * B3 + 0.2611 * B4 + 0.2964 * B5 + 0.3338 * B6 + 0.3877 * B7 + 0.3895 * B8 \
+            + 0.0949 * B9 + 0.0009 * B10 + 0.3882 * B11 + 0.1366 * B12 + 0.4750 * B8A',
+        {
+            'B1': self.select('Aerosol'),
+            'B2': self.select('Blue'),
+            'B3': self.select('Green'),
+            'B4': self.select('Red'),
+            'B5': self.select('RedEdge1'),
+            'B6': self.select('RedEdge2'),
+            'B7': self.select('RedEdge3'),
+            'B8': self.select('NIR'),
+            'B8A': self.select('RedEdge4'),
+            'B9': self.select('WaterVapor'),
+            'B10': self.select('Cirrus'),
+            'B11': self.select('SWIR1'),
+            'B12': self.select('SWIR2')
+        }
+    ).rename('TCB')
+    greenness = self.expression(
+        '-0.0635 * B1 - 0.1128 * B2 - 0.1680 * B3 - 0.3480 * B4 - 0.3303 * B5 + 0.0852 * B6 + 0.3302 * B7 + 0.3165 * \
+            B8 + 0.0467 * B9 - 0.0009 * B10 - 0.4578 * B11 - 0.4064 * B12 + 0.3625 * B8A',
+        {
+            'B1': self.select('Aerosol'),
+            'B2': self.select('Blue'),
+            'B3': self.select('Green'),
+            'B4': self.select('Red'),
+            'B5': self.select('RedEdge1'),
+            'B6': self.select('RedEdge2'),
+            'B7': self.select('RedEdge3'),
+            'B8': self.select('NIR'),
+            'B8A': self.select('RedEdge4'),
+            'B9': self.select('WaterVapor'),
+            'B10': self.select('Cirrus'),
+            'B11': self.select('SWIR1'),
+            'B12': self.select('SWIR2')
+        }
+    ).rename('TCG')
+    wetness = self.expression(
+        '0.0649 * B1 + 0.1363 * B2 + 0.2802 * B3 + 0.3072 * B4 + 0.5288 * B5 + 0.1379 * B6 - 0.0001 * B7 - 0.0807 * B8 \
+            - 0.0302 * B9 + 0.0003 * B10 - 0.4064 * B11 - 0.5602 * B12 - 0.1389 * B8A',
+        {
+            'B1': self.select('Aerosol'),
+            'B2': self.select('Blue'),
+            'B3': self.select('Green'),
+            'B4': self.select('Red'),
+            'B5': self.select('RedEdge1'),
+            'B6': self.select('RedEdge2'),
+            'B7': self.select('RedEdge3'),
+            'B8': self.select('NIR'),
+            'B8A': self.select('RedEdge4'),
+            'B9': self.select('WaterVapor'),
+            'B10': self.select('Cirrus'),
+            'B11': self.select('SWIR1'),
+            'B12': self.select('SWIR2')
+        }
+    ).rename('TCW')
+    return self.addBands(brightness).addBands(greenness).addBands(wetness)
+
+
+ee.Image.kt_transform = kt_transform
+
+
 def split_region(region: ee.Geometry, num_tiles) -> list:
     coords = region.bounds().coordinates().get(0).getInfo()
     min_lon, min_lat = coords[0]
@@ -91,24 +167,37 @@ def split_region(region: ee.Geometry, num_tiles) -> list:
 
 def _sentinel_2_msi_multispectral_instrument_level_2a_band_rename(image: ee.Image):
     band_rename_dic = ee.Dictionary({
+        'B1': 'Aerosol',
         'B2': 'Blue',
         'B3': 'Green',
         'B4': 'Red',
+        'B5': 'RedEdge1',
+        'B6': 'RedEdge2',
+        'B7': 'RedEdge3',
         'B8': 'NIR',
+        'B8A': 'RedEdge4',
+        'B9': 'WaterVapor',
+        'B10': 'Cirrus',
         'B11': 'SWIR1',
         'B12': 'SWIR2',
         'QA60': 'QA',
-        'MSK_CLDPRB': 'CLD_PRB',
     })
     return image.select(band_rename_dic.keys()).rename(band_rename_dic.values())
 
 
-def _sentinel_2_msi_multispectral_instrument_level_2a_band_rename(image: ee.Image):
+def _sentinel_2_msi_multispectral_instrument_level_1c_band_rename(image: ee.Image):
     band_rename_dic = ee.Dictionary({
+        'B1': 'Aerosol',
         'B2': 'Blue',
         'B3': 'Green',
         'B4': 'Red',
+        'B5': 'RedEdge1',
+        'B6': 'RedEdge2',
+        'B7': 'RedEdge3',
         'B8': 'NIR',
+        'B8A': 'RedEdge4',
+        'B9': 'WaterVapor',
+        'B10': 'Cirrus',
         'B11': 'SWIR1',
         'B12': 'SWIR2',
         'QA60': 'QA',
@@ -130,7 +219,7 @@ def band_rename(self) -> ee.ImageCollection:
             self = self.map(lambda img: _sentinel_2_msi_multispectral_instrument_level_2a_band_rename(img))
         case 'Sentinel-2 MSI: MultiSpectral Instrument, Level-1C':
             self = self.map(lambda img: img.addBands(
-                _sentinel_2_msi_multispectral_instrument_level_2a_band_rename(img)
+                _sentinel_2_msi_multispectral_instrument_level_1c_band_rename(img)
             ))
         case _:
             print(f'The input image collection [{collection_title}] is not supported.')
