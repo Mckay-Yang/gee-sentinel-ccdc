@@ -61,67 +61,53 @@ bands_list = ee.List([
 
 start_date = ee.Date('2015-06-27')
 end_date = ee.Date('2025-01-01')
-aoi_grid = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
-tp_forest_mask: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select('b1').neq(0)
-index = 0
-for aoi_grid_feature in aoi_grid.getInfo()['features']:
 
-    # Caution: change here to skip some AOIs
-    # Caution: change here to skip some AOIs
-    # Caution: change here to skip some AOIs
-    # if index != 0:
-    #     index += 1
-    #     continue
+aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_tiny_aoi').geometry()
+sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
+    .filterDate(start_date, end_date)
+sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
+sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
+sentinel_2_l2a = sentinel_2_l2a.band_rename()
+sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
+sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.evi())
+sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.kt_transform())
+ccdc_input = sentinel_2_l2a.select(
+    ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
+)
+ccdc_input = ccdc_input.map(lambda img: img.clip(aoi))
+ccdc_result: ee.Image = ee.Algorithms.TemporalSegmentation.Ccdc(
+    ccdc_input,
+    minObservations=12,
+    dateFormat=1,
+    chiSquareProbability=0.99,
+    maxIterations=25000,
+)
 
-    aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-    # aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_tiny_aoi').geometry()
-    sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
-        .filterDate(start_date, end_date)
-    sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
-    sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.updateMask(tp_forest_mask.clip(aoi)))
-    sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
-    sentinel_2_l2a = sentinel_2_l2a.band_rename()
-    sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
-    sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.evi())
-    sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.kt_transform())
-    ccdc_input = sentinel_2_l2a.select(
-        ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
-    )
-    ccdc_input = ccdc_input.map(lambda img: img.clip(aoi))
-    ccdc_result: ee.Image = ee.Algorithms.TemporalSegmentation.Ccdc(
-        ccdc_input,
-        minObservations=12,
-        dateFormat=1,
-        chiSquareProbability=0.99,
-        maxIterations=25000,
-    )
-
-    # keys() and values() will return ee.List with length 1, so we need to get(0) to get the actual parameters
-    ccdc_result_flat_list = bands_list.map(
-        lambda band: ccdc_result.select([ee.Dictionary(band).keys().get(0)]).arrayPad([10], 0) \
-            .arrayFlatten([ee.Dictionary(band).values().get(0)])
-    )
-    ccdc_result_flat = ee.Image(ccdc_result_flat_list.get(0)).addBands(ee.Image(ccdc_result_flat_list.get(1))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(2))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(3))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(4))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(5))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(6))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(7))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(8))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(9))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(10))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(11))) \
-        .addBands(ee.Image(ccdc_result_flat_list.get(12)))
-    file_name = f'ccdc_result_{index}'
-    geemap.ee_export_image_to_asset(
-        image=ccdc_result_flat,
-        # image=ccdc_result,
-        description='export_' + file_name,
-        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
-        scale=10,
-        region=aoi,
-        maxPixels=1e13,
-        crs='EPSG:4326',
-    )
-    index += 1
+# keys() and values() will return ee.List with length 1, so we need to get(0) to get the actual parameters
+ccdc_result_flat_list = bands_list.map(
+    lambda band: ccdc_result.select([ee.Dictionary(band).keys().get(0)]).arrayPad([10], 0) \
+        .arrayFlatten([ee.Dictionary(band).values().get(0)])
+)
+ccdc_result_flat = ee.Image(ccdc_result_flat_list.get(0)).addBands(ee.Image(ccdc_result_flat_list.get(1))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(2))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(3))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(4))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(5))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(6))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(7))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(8))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(9))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(10))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(11))) \
+    .addBands(ee.Image(ccdc_result_flat_list.get(12)))
+file_name = f'ccdc_result_{index}'
+geemap.ee_export_image_to_asset(
+    image=ccdc_result_flat,
+    # image=ccdc_result,
+    description='export_' + file_name,
+    assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
+    scale=10,
+    region=aoi,
+    maxPixels=1e13,
+    crs='EPSG:4326',
+)
