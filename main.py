@@ -66,12 +66,12 @@ tp_forest_mask: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Fores
 index = 0
 for aoi_grid_feature in aoi_grid.getInfo()['features']:
 
-    # Caution: change here to skip some AOIs
-    # Caution: change here to skip some AOIs
-    # Caution: change here to skip some AOIs
-    # if index != 0:
-    #     index += 1
-    #     continue
+    # Caution: change here to skip some AOIs or re-run some AOIs
+    # Caution: change here to skip some AOIs or re-run some AOIs
+    # Caution: change here to skip some AOIs or re-run some AOIs
+    if index not in range(99, 109 + 1):
+        index += 1
+        continue
 
     aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
     # aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_tiny_aoi').geometry()
