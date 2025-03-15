@@ -65,6 +65,7 @@ BAND_LIST = ee.List([
     ]}),
 ])
 
+
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
 AOI = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
@@ -300,4 +301,3 @@ if __name__ == '__main__':
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
     ccdc_main()
-    task_monitor_thread.join()
