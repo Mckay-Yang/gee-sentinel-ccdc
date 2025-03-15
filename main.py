@@ -4,7 +4,8 @@ import utils
 import threading
 import time
 
-utils.ee_init()
+ee.Authenticate()
+ee.Initialize(project='your_project_id')
 
 EE_TASK_MONITORING_DICT: dict[dict: dict] = {}
 EE_TASK_MONITORING_DICT_LOCK = threading.Lock()
@@ -63,6 +64,7 @@ BAND_LIST = ee.List([
         'TCW_magnitude_5', 'TCW_magnitude_6', 'TCW_magnitude_7', 'TCW_magnitude_8', 'TCW_magnitude_9'
     ]}),
 ])
+
 
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
@@ -144,13 +146,10 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
         }
 
 
+
 def ccdc_main():
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        if index not in [54]:
-            index += 1
-            continue
-
         aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
         ccdc_input = ccdc_image_collection_preprocess(aoi)
         ccdc_result = ccdc(ccdc_input, aoi)
@@ -234,6 +233,7 @@ def ee_task_monitor():
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
                 ee_task_aoi_split_retry(task_id)
+
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
@@ -245,4 +245,3 @@ if __name__ == '__main__':
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
     ccdc_main()
-    task_monitor_thread.join()
