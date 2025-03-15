@@ -416,6 +416,29 @@ def millis_to_date(millis: int) -> str:
     return date.strftime('%Y-%m-%d')
 
 
+def get_aoi_corners(aoi: ee.Geometry) -> (ee.Number, ee.Number, ee.Number, ee.Number):
+    """
+    Get the corners of the input AOI.
+
+    Args:
+    aoi: ee.Geometry - The input AOI
+
+    Returns:
+    list - The corners of the input AOI
+    """
+    coords = aoi.bounds().coordinates().get(0).getInfo()
+    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
+    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
+    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
+    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
+
+    xmin = ee.Number(xmin)
+    ymin = ee.Number(ymin)
+    xmax = ee.Number(xmax)
+    ymax = ee.Number(ymax)
+    return xmin, ymin, xmax, ymax
+
+
 def create_grid_aoi(aoi: ee.Geometry, interval: int) -> ee.FeatureCollection:
     """
     Create a grid of AOIs from the input AOI.
@@ -430,10 +453,7 @@ def create_grid_aoi(aoi: ee.Geometry, interval: int) -> ee.FeatureCollection:
     bounds = aoi.bounds()
     coords = ee.List(bounds.coordinates().get(0))
 
-    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
-    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
-    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
-    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
+
 
     x_steps = xmax.subtract(xmin).divide(interval).ceil().int()
     y_steps = ymax.subtract(ymin).divide(interval).ceil().int()

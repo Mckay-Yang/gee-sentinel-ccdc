@@ -173,16 +173,7 @@ def ee_task_aoi_split_retry(task_id: str):
         return
 
     # Split the aoi into smaller pieces
-    coords = ee.List(aoi.coordinates().get(0))
-    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
-    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
-    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
-    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
-
-    xmin = ee.Number(xmin)
-    ymin = ee.Number(ymin)
-    xmax = ee.Number(xmax)
-    ymax = ee.Number(ymax)
+    xmin, ymin, xmax, ymax = utils.get_aoi_corners(aoi)
 
     num_rows = ee.Number(6)
     num_cols = ee.Number(6)
@@ -211,7 +202,6 @@ def ee_task_aoi_split_retry(task_id: str):
 
 def ee_task_monitor():
     waits_empty_times = 0
-
     while True:
         if len(EE_TASK_MONITORING_DICT) == 0:
             waits_empty_times += 1
@@ -233,7 +223,6 @@ def ee_task_monitor():
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
                 ee_task_aoi_split_retry(task_id)
-
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
@@ -242,6 +231,6 @@ def ee_task_monitor():
 
 
 if __name__ == '__main__':
+    ccdc_main()
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
-    ccdc_main()
