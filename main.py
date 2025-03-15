@@ -69,7 +69,7 @@ BAND_LIST = ee.List([
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
 AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
-TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select('b1').neq(0)
+TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 
 
@@ -150,12 +150,13 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
 def ccdc_main():
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-        ccdc_input = ccdc_image_collection_preprocess(aoi)
-        ccdc_result = ccdc(ccdc_input, aoi)
-        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-        file_name = f'ccdc_result_{index}'
-        ccdc_result_export(ccdc_result_flat, aoi, file_name)
+        if index in [54]:
+            aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
+            ccdc_input = ccdc_image_collection_preprocess(aoi)
+            ccdc_result = ccdc(ccdc_input, aoi)
+            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+            file_name = f'ccdc_result_{index}'
+            ccdc_result_export(ccdc_result_flat, aoi, file_name)
         index += 1
 
 
@@ -211,7 +212,6 @@ def ee_task_aoi_split_retry(task_id: str):
 
 def ee_task_monitor():
     waits_empty_times = 0
-
     while True:
         if len(EE_TASK_MONITORING_DICT) == 0:
             waits_empty_times += 1
@@ -233,7 +233,6 @@ def ee_task_monitor():
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
                 ee_task_aoi_split_retry(task_id)
-
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
@@ -242,6 +241,6 @@ def ee_task_monitor():
 
 
 if __name__ == '__main__':
+    ccdc_main()
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
-    ccdc_main()
