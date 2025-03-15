@@ -296,6 +296,10 @@ def ee_task_monitor():
                 print(f'Task {task_id} failed')
                 # Task info will be deleted in the retry function
                 threading.Thread(target=ee_task_aoi_split_retry, args=(task_id,)).start()
+            elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
+                print(f'Task {task_id} cancelled')
+                with EE_TASK_MONITORING_DICT_LOCK:
+                    del EE_TASK_MONITORING_DICT[task_id]
         time.sleep(0.1)
 
 
