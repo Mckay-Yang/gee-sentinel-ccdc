@@ -163,11 +163,9 @@ def ccdc_main():
 def ee_task_aoi_split_retry(task_id: str):
     # Get the task info and delete it from the dict
     with EE_TASK_MONITORING_DICT_LOCK:
-        aoi = EE_TASK_MONITORING_DICT[task_id]['aoi']
+        aoi = ee.Geometry(EE_TASK_MONITORING_DICT[task_id]['aoi'])
         file_name = EE_TASK_MONITORING_DICT[task_id]['file_name']
         del EE_TASK_MONITORING_DICT[task_id]
-
-    aoi = ee.Feature(aoi['geometry']).geometry()
 
     # If the aoi is too small, less then a pixel, just return
     if aoi.area().getInfo() < 100:
