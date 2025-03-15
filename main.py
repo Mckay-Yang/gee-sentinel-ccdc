@@ -5,7 +5,7 @@ import threading
 import time
 
 ee.Authenticate()
-ee.Initialize(project='your_project_id')
+ee.Initialize(project='ee-yangluhao990714')
 
 EE_TASK_MONITORING_DICT: dict[dict: dict] = {}
 EE_TASK_MONITORING_DICT_LOCK = threading.Lock()
