@@ -262,7 +262,7 @@ def ee_task_aoi_split_retry(task_id: str):
                 # To get the task info, the three fields are necessary
                 'id': task.id,
                 'state': ee.batch.Task.State(task.status()['state']),
-                'type': ee.batch.Task.Type(task.status()['type']),
+                'type': ee.batch.Task.Type(task.status()['task_type']),
 
                 'file_name': file_name_cut,
             }
