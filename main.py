@@ -81,14 +81,6 @@ def ccdc_main():
 
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        if index not in [54, 84]:
-            index += 1
-            continue
-
         aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
         # aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_tiny_aoi').geometry()
         sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
