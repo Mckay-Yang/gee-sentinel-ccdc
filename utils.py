@@ -416,7 +416,7 @@ def millis_to_date(millis: int) -> str:
     return date.strftime('%Y-%m-%d')
 
 
-def get_aoi_corners(aoi: ee.Geometry) -> (ee.Number, ee.Number, ee.Number, ee.Number):
+def get_aoi_corners(aoi: ee.Geometry) -> list[ee.Number, ee.Number, ee.Number, ee.Number]:
     """
     Get the corners of the input AOI.
 
@@ -436,7 +436,7 @@ def get_aoi_corners(aoi: ee.Geometry) -> (ee.Number, ee.Number, ee.Number, ee.Nu
     ymin = ee.Number(ymin)
     xmax = ee.Number(xmax)
     ymax = ee.Number(ymax)
-    return xmin, ymin, xmax, ymax
+    return [xmin, ymin, xmax, ymax]
 
 
 def create_grid_aoi(aoi: ee.Geometry, interval: int) -> ee.FeatureCollection:
@@ -453,7 +453,7 @@ def create_grid_aoi(aoi: ee.Geometry, interval: int) -> ee.FeatureCollection:
     bounds = aoi.bounds()
     coords = ee.List(bounds.coordinates().get(0))
 
-
+    xmin, ymin, xmax, ymax = get_aoi_corners(aoi)
 
     x_steps = xmax.subtract(xmin).divide(interval).ceil().int()
     y_steps = ymax.subtract(ymin).divide(interval).ceil().int()
