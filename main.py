@@ -68,100 +68,100 @@ START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
 AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
 TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select('b1').neq(0)
+IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
+
+
+def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
+    img_col = IMAGE_COLLECTION.filterBounds(aoi) \
+        .filterDate(START_DATE, END_DATE)
+    img_col = img_col.map(lambda img: img.clip(aoi))
+    img_col = img_col.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
+    img_col = img_col.remove_clouds()
+    img_col = img_col.band_rename()
+    img_col = img_col.map(lambda img: img.ndvi())
+    img_col = img_col.map(lambda img: img.evi())
+    img_col = img_col.map(lambda img: img.kt_transform())
+    ret = img_col.select(
+        ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
+    )
+    ret = ret.map(lambda img: img.clip(aoi))
+    return ret
+
+
+def ccdc(ccdc_input: ee.ImageCollection, aoi: ee.Geometry) -> ee.Image:
+    ccdc_result: ee.Image = ee.Algorithms.TemporalSegmentation.Ccdc(
+        ccdc_input,
+        minObservations=12,
+        dateFormat=1,
+        chiSquareProbability=0.99,
+        maxIterations=25000,
+    )
+    return ccdc_result
+
+
+def ccdc_result_flaten(ccdc_result: ee.Image) -> ee.Image:
+    ccdc_result_flat_list = BAND_LIST.map(
+        lambda band: ccdc_result.select([ee.Dictionary(band).keys().get(0)]).arrayPad([10], 0) \
+            .arrayFlatten([ee.Dictionary(band).values().get(0)])
+    )
+    ccdc_result_flat = ee.Image(ccdc_result_flat_list.get(0)).addBands(ee.Image(ccdc_result_flat_list.get(1))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(2))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(3))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(4))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(5))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(6))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(7))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(8))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(9))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(10))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(11))) \
+        .addBands(ee.Image(ccdc_result_flat_list.get(12)))
+    return ccdc_result_flat
+
+
+def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: str):
+    task = ee.batch.Export.image.toAsset(
+        image=ccdc_result_flat,
+        description='export_' + file_name,
+        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
+        scale=10,
+        region=aoi,
+        maxPixels=1e13,
+        crs='EPSG:4326',
+    )
+    task.start()
+    with EE_TASK_MONITORING_DICT_LOCK:
+        EE_TASK_MONITORING_DICT[task.id] = {
+            # To cut current aoi into smaller pieces
+            'aoi': aoi,
+
+            # To get the task info, the three fields are necessary
+            'id': task.id,
+            'state': ee.batch.Task.State(task.status()['state']),
+            'type': ee.batch.Task.Type(task.status()['task_type']),
+
+            'file_name': file_name,
+        }
+
 
 def ccdc_main():
-    global EE_TASK_MONITORING_DICT
-    global EE_TASK_MONITORING_DICT_LOCK
-    global BAND_LIST
-    global START_DATE
-    global END_DATE
-    global AOI_GRID
-    global TP_FOREST_MASK
-
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        # Caution: change here to skip some AOIs or re-run some AOIs
-        if index not in [54, 84]:
+        if index not in [54]:
             index += 1
             continue
 
         aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-        # aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_tiny_aoi').geometry()
-        sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
-            .filterDate(START_DATE, END_DATE)
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
-        sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
-        sentinel_2_l2a = sentinel_2_l2a.band_rename()
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.evi())
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.kt_transform())
-        ccdc_input = sentinel_2_l2a.select(
-            ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
-        )
-        ccdc_input = ccdc_input.map(lambda img: img.clip(aoi))
-        ccdc_result: ee.Image = ee.Algorithms.TemporalSegmentation.Ccdc(
-            ccdc_input,
-            minObservations=12,
-            dateFormat=1,
-            chiSquareProbability=0.99,
-            maxIterations=25000,
-        )
-
-        # keys() and values() will return ee.List with length 1, so we need to get(0) to get the actual parameters
-        ccdc_result_flat_list = BAND_LIST.map(
-            lambda band: ccdc_result.select([ee.Dictionary(band).keys().get(0)]).arrayPad([10], 0) \
-                .arrayFlatten([ee.Dictionary(band).values().get(0)])
-        )
-        ccdc_result_flat = ee.Image(ccdc_result_flat_list.get(0)).addBands(ee.Image(ccdc_result_flat_list.get(1))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(2))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(3))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(4))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(5))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(6))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(7))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(8))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(9))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(10))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(11))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(12)))
+        ccdc_input = ccdc_image_collection_preprocess(aoi)
+        ccdc_result = ccdc(ccdc_input, aoi)
+        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
         file_name = f'ccdc_result_{index}'
-        task = ee.batch.Export.image.toAsset(
-            image=ccdc_result_flat,
-            description='export_' + file_name,
-            assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
-            scale=10,
-            region=aoi,
-            maxPixels=1e13,
-            crs='EPSG:4326',
-        )
-        task.start()
-        with EE_TASK_MONITORING_DICT_LOCK:
-            EE_TASK_MONITORING_DICT[task.id] = {
-                # To cut current aoi into smaller pieces
-                'aoi': aoi_grid_feature,
-
-                # To get the task info, the three fields are necessary
-                'id': task.id,
-                'state': ee.batch.Task.State(task.status()['state']),
-                'type': ee.batch.Task.Type(task.status()['task_type']),
-
-                'file_name': file_name,
-            }
+        ccdc_result_export(ccdc_result_flat, aoi, file_name)
         index += 1
 
 
 def ee_task_aoi_split_retry(task_id: str):
-    global EE_TASK_MONITORING_DICT
-    global EE_TASK_MONITORING_DICT_LOCK
-    global BAND_LIST
-    global START_DATE
-    global END_DATE
-    global TP_FOREST_MASK
-
+    # Get the task info and delete it from the dict
     with EE_TASK_MONITORING_DICT_LOCK:
         aoi = EE_TASK_MONITORING_DICT[task_id]['aoi']
         file_name = EE_TASK_MONITORING_DICT[task_id]['file_name']
@@ -175,7 +175,6 @@ def ee_task_aoi_split_retry(task_id: str):
 
     # Split the aoi into smaller pieces
     coords = ee.List(aoi.coordinates().get(0))
-    print(coords.getInfo())
     xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
     ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
     xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
@@ -204,74 +203,14 @@ def ee_task_aoi_split_retry(task_id: str):
 
     for index in range(36):
         aoi = ee.Geometry(aoi_list.get(index))
-
-        sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
-            .filterDate(START_DATE, END_DATE)
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
-        sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
-        sentinel_2_l2a = sentinel_2_l2a.band_rename()
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.evi())
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.kt_transform())
-        ccdc_input = sentinel_2_l2a.select(
-            ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
-        )
-        ccdc_input = ccdc_input.map(lambda img: img.clip(aoi))
-        ccdc_result: ee.Image = ee.Algorithms.TemporalSegmentation.Ccdc(
-            ccdc_input,
-            minObservations=12,
-            dateFormat=1,
-            chiSquareProbability=0.99,
-            maxIterations=25000,
-        )
-
-        # keys() and values() will return ee.List with length 1, so we need to get(0) to get the actual parameters
-        ccdc_result_flat_list = BAND_LIST.map(
-            lambda band: ccdc_result.select([ee.Dictionary(band).keys().get(0)]).arrayPad([10], 0) \
-                .arrayFlatten([ee.Dictionary(band).values().get(0)])
-        )
-        ccdc_result_flat = ee.Image(ccdc_result_flat_list.get(0)).addBands(ee.Image(ccdc_result_flat_list.get(1))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(2))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(3))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(4))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(5))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(6))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(7))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(8))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(9))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(10))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(11))) \
-            .addBands(ee.Image(ccdc_result_flat_list.get(12)))
+        ccdc_input = ccdc_image_collection_preprocess(aoi)
+        ccdc_result = ccdc(ccdc_input, aoi)
+        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
         file_name_cut = f'{file_name}_{index}'
-        task = ee.batch.Export.image.toAsset(
-            image=ccdc_result_flat,
-            description='export_' + file_name_cut,
-            assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name_cut}',
-            scale=10,
-            region=aoi,
-            maxPixels=1e13,
-            crs='EPSG:4326',
-        )
-        task.start()
-        with EE_TASK_MONITORING_DICT_LOCK:
-            EE_TASK_MONITORING_DICT[task.id] = {
-                # To cut current aoi into smaller pieces
-                'aoi': aoi,
-
-                # To get the task info, the three fields are necessary
-                'id': task.id,
-                'state': ee.batch.Task.State(task.status()['state']),
-                'type': ee.batch.Task.Type(task.status()['task_type']),
-
-                'file_name': file_name_cut,
-            }
+        ccdc_result_export(ccdc_result_flat, aoi, file_name_cut)
 
 
 def ee_task_monitor():
-    global EE_TASK_MONITORING_DICT
-    global EE_TASK_MONITORING_DICT_LOCK
-
     waits_empty_times = 0
 
     while True:
@@ -294,8 +233,7 @@ def ee_task_monitor():
                     del EE_TASK_MONITORING_DICT[task_id]
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
-                # Task info will be deleted in the retry function
-                threading.Thread(target=ee_task_aoi_split_retry, args=(task_id,)).start()
+                ee_task_aoi_split_retry(task_id)
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
