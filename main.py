@@ -4,7 +4,8 @@ import utils
 import threading
 import time
 
-utils.ee_init()
+ee.Authenticate()
+ee.Initialize(project='your_project_id')
 
 EE_TASK_MONITORING_DICT: dict[dict: dict] = {}
 EE_TASK_MONITORING_DICT_LOCK = threading.Lock()
@@ -66,8 +67,8 @@ BAND_LIST = ee.List([
 
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
-AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
-TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select('b1').neq(0)
+AOI = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
+AOI_GRID = utils.create_grid_aoi(AOI, 1e5)
 
 def ccdc_main():
     global EE_TASK_MONITORING_DICT
@@ -76,7 +77,6 @@ def ccdc_main():
     global START_DATE
     global END_DATE
     global AOI_GRID
-    global TP_FOREST_MASK
 
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
@@ -93,7 +93,6 @@ def ccdc_main():
         sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
             .filterDate(START_DATE, END_DATE)
         sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
         sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
         sentinel_2_l2a = sentinel_2_l2a.band_rename()
         sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
@@ -160,7 +159,6 @@ def ee_task_aoi_split_retry(task_id: str):
     global BAND_LIST
     global START_DATE
     global END_DATE
-    global TP_FOREST_MASK
 
     with EE_TASK_MONITORING_DICT_LOCK:
         aoi = EE_TASK_MONITORING_DICT[task_id]['aoi']
@@ -208,7 +206,6 @@ def ee_task_aoi_split_retry(task_id: str):
         sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED').filterBounds(aoi) \
             .filterDate(START_DATE, END_DATE)
         sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.clip(aoi))
-        sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
         sentinel_2_l2a = sentinel_2_l2a.remove_clouds()
         sentinel_2_l2a = sentinel_2_l2a.band_rename()
         sentinel_2_l2a = sentinel_2_l2a.map(lambda img: img.ndvi())
