@@ -95,7 +95,7 @@ def ccdc(ccdc_input: ee.ImageCollection, aoi: ee.Geometry) -> ee.Image:
         ccdc_input,
         minObservations=12,
         dateFormat=1,
-        chiSquareProbability=0.99,
+        chiSquareProbability=0.995,
         maxIterations=25000,
     )
     return ccdc_result
@@ -125,7 +125,7 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
     task = ee.batch.Export.image.toAsset(
         image=ccdc_result_flat,
         description='export_' + file_name,
-        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
+        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_0995/{file_name}',
         scale=10,
         region=aoi,
         maxPixels=1e13,
@@ -146,17 +146,15 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
         }
 
 
-
 def ccdc_main():
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        if index in [54]:
-            aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-            ccdc_input = ccdc_image_collection_preprocess(aoi)
-            ccdc_result = ccdc(ccdc_input, aoi)
-            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-            file_name = f'ccdc_result_{index}'
-            ccdc_result_export(ccdc_result_flat, aoi, file_name)
+        aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
+        ccdc_input = ccdc_image_collection_preprocess(aoi)
+        ccdc_result = ccdc(ccdc_input, aoi)
+        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+        file_name = f'ccdc_result_{index}'
+        ccdc_result_export(ccdc_result_flat, aoi, file_name)
         index += 1
 
 
@@ -223,7 +221,12 @@ def ee_task_monitor():
             task = ee.batch.Task(
                 task_id, EE_TASK_MONITORING_DICT[task_id]['type'], EE_TASK_MONITORING_DICT[task_id]['state']
             )
-            task_status = task.status()
+            try:
+                task_status = task.status()
+            except Exception as e:
+                print(f'Task {task_id} failed to get status: {e}')
+                time.sleep(0.5)
+                continue
             if task_status['state'] == 'COMPLETED':
                 print(f'Task {task_id} completed')
                 with EE_TASK_MONITORING_DICT_LOCK:
@@ -235,7 +238,7 @@ def ee_task_monitor():
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
                     del EE_TASK_MONITORING_DICT[task_id]
-        time.sleep(0.1)
+            time.sleep(0.5)
 
 
 if __name__ == '__main__':
