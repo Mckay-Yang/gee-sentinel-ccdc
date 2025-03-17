@@ -213,7 +213,12 @@ def ee_task_monitor():
             task = ee.batch.Task(
                 task_id, EE_TASK_MONITORING_DICT[task_id]['type'], EE_TASK_MONITORING_DICT[task_id]['state']
             )
-            task_status = task.status()
+            try:
+                task_status = task.status()
+            except Exception as e:
+                print(f'Error getting task status: {e}')
+                time.sleep(0.5)
+                continue
             if task_status['state'] == 'COMPLETED':
                 print(f'Task {task_id} completed')
                 with EE_TASK_MONITORING_DICT_LOCK:
@@ -225,7 +230,7 @@ def ee_task_monitor():
                 print(f'Task {task_id} cancelled')
                 with EE_TASK_MONITORING_DICT_LOCK:
                     del EE_TASK_MONITORING_DICT[task_id]
-        time.sleep(0.1)
+            time.sleep(0.5)
 
 
 if __name__ == '__main__':
