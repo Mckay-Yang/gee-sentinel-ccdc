@@ -208,13 +208,12 @@ def start_one_task():
 def ccdc_main():
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        if index in [24, 54]:
-            aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-            ccdc_input = ccdc_image_collection_preprocess(aoi)
-            ccdc_result = ccdc(ccdc_input, aoi)
-            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-            file_name = f'ccdc_result_{index}'
-            ccdc_result_export(ccdc_result_flat, aoi, file_name)
+        aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
+        ccdc_input = ccdc_image_collection_preprocess(aoi)
+        ccdc_result = ccdc(ccdc_input, aoi)
+        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+        file_name = f'ccdc_result_{index}'
+        ccdc_result_export(ccdc_result_flat, aoi, file_name)
         index += 1
 
 
