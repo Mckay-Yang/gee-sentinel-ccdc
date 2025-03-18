@@ -5,7 +5,7 @@ import threading
 import time
 
 ee.Authenticate()
-ee.Initialize(project='your_project_id')
+ee.Initialize(project='ee-yangluhao990714')
 
 EE_TASK_MONITORING_DICT: dict[dict: dict] = {}
 EE_TASK_MONITORING_DICT_LOCK = threading.Lock()
@@ -69,7 +69,7 @@ BAND_LIST = ee.List([
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
 AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
-TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select('b1').neq(0)
+TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 
 
@@ -95,7 +95,7 @@ def ccdc(ccdc_input: ee.ImageCollection, aoi: ee.Geometry) -> ee.Image:
         ccdc_input,
         minObservations=12,
         dateFormat=1,
-        chiSquareProbability=0.99,
+        chiSquareProbability=0.995,
         maxIterations=25000,
     )
     return ccdc_result
@@ -125,7 +125,7 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
     task = ee.batch.Export.image.toAsset(
         image=ccdc_result_flat,
         description='export_' + file_name,
-        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099/{file_name}',
+        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_0995/{file_name}',
         scale=10,
         region=aoi,
         maxPixels=1e13,
@@ -144,7 +144,6 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
 
             'file_name': file_name,
         }
-
 
 
 def ccdc_main():
@@ -216,7 +215,7 @@ def ee_task_monitor():
             try:
                 task_status = task.status()
             except Exception as e:
-                print(f'Error getting task status: {e}')
+                print(f'Task {task_id} failed to get status: {e}')
                 time.sleep(0.5)
                 continue
             if task_status['state'] == 'COMPLETED':
