@@ -3,12 +3,18 @@ import geemap
 import utils
 import threading
 import time
+from typing import Optional
+import os
+import inspect
+import datetime
 
 ee.Authenticate()
 ee.Initialize(project='ee-yangluhao990714')
 
-EE_TASK_MONITORING_DICT: dict[dict: dict] = {}
-EE_TASK_MONITORING_DICT_LOCK = threading.Lock()
+EE_TASK_MONITORING_QUEUE: dict[dict: dict] = {}
+EE_TASK_MONITORING_QUEUE_LOCK = threading.Lock()
+EE_TASK_QUEUE: list[dict] = []
+EE_TASK_QUEUE_LOCK = threading.Lock()
 
 BAND_LIST = ee.List([
     ee.Dictionary({'tBreak': [
@@ -71,6 +77,64 @@ END_DATE = ee.Date('2025-01-01')
 AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
 TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
+MAX_PARALLEL_TASKS = 1
+
+
+def _log(self, msg):
+    if not os.path.exists('./log'):
+        os.makedirs('./log')
+    with open('./log/log.log', 'a') as f:
+        function_name = inspect.currentframe().f_back.f_code.co_name
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write(f'[{timestamp}] [{function_name}]: {msg}\n')
+
+
+def _log_err(self, msg):
+    if not os.path.exists('./log'):
+        os.makedirs('./log')
+    with open('./log/err.log', 'a') as f:
+        function_name = inspect.currentframe().f_back.f_code.co_name
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write(f'[{timestamp}] [{function_name}]: {msg}\n')
+
+
+def log(msg):
+    thread = threading.Thread(target=_log, args=(msg,)).start()
+
+
+def log_err(msg):
+    thread = threading.Thread(target=_log_err, args=(msg,)).start()
+
+
+def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str):
+    with EE_TASK_QUEUE_LOCK:
+        EE_TASK_QUEUE.append({
+            'task': task,
+            'aoi': aoi,
+            'file_name': file_name,
+        })
+
+
+def get_ee_task_queue() -> Optional[dict]:
+    if len(EE_TASK_QUEUE) == 0:
+        return None
+    with EE_TASK_QUEUE_LOCK:
+        return EE_TASK_QUEUE.pop(0)
+
+
+def append_ee_task_monitoring_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str):
+    with EE_TASK_MONITORING_QUEUE_LOCK:
+        EE_TASK_MONITORING_QUEUE[task.id] = {
+            # To cut current aoi into smaller pieces
+            'aoi': aoi,
+
+            # To get the task info, the three fields are necessary
+            'id': task.id,
+            'state': ee.batch.Task.State(task.status()['state']),
+            'type': ee.batch.Task.Type(task.status()['task_type']),
+
+            'file_name': file_name,
+        }
 
 
 def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
@@ -131,39 +195,35 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
         maxPixels=1e13,
         crs='EPSG:4326',
     )
-    task.start()
-    with EE_TASK_MONITORING_DICT_LOCK:
-        EE_TASK_MONITORING_DICT[task.id] = {
-            # To cut current aoi into smaller pieces
-            'aoi': aoi,
+    append_ee_task_queue(task, aoi, file_name)
 
-            # To get the task info, the three fields are necessary
-            'id': task.id,
-            'state': ee.batch.Task.State(task.status()['state']),
-            'type': ee.batch.Task.Type(task.status()['task_type']),
 
-            'file_name': file_name,
-        }
+def start_one_task():
+    task_dict = get_ee_task_queue()
+    if task_dict is not None:
+        task_dict['task'].start()
+        append_ee_task_monitoring_queue(task_dict['task'], task_dict['aoi'], task_dict['file_name'])
 
 
 def ccdc_main():
     index = 0
     for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-        ccdc_input = ccdc_image_collection_preprocess(aoi)
-        ccdc_result = ccdc(ccdc_input, aoi)
-        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-        file_name = f'ccdc_result_{index}'
-        ccdc_result_export(ccdc_result_flat, aoi, file_name)
+        if index in [24, 54]:
+            aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
+            ccdc_input = ccdc_image_collection_preprocess(aoi)
+            ccdc_result = ccdc(ccdc_input, aoi)
+            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+            file_name = f'ccdc_result_{index}'
+            ccdc_result_export(ccdc_result_flat, aoi, file_name)
         index += 1
 
 
 def ee_task_aoi_split_retry(task_id: str):
     # Get the task info and delete it from the dict
-    with EE_TASK_MONITORING_DICT_LOCK:
-        aoi = ee.Geometry(EE_TASK_MONITORING_DICT[task_id]['aoi'])
-        file_name = EE_TASK_MONITORING_DICT[task_id]['file_name']
-        del EE_TASK_MONITORING_DICT[task_id]
+    with EE_TASK_MONITORING_QUEUE_LOCK:
+        aoi = ee.Geometry(EE_TASK_MONITORING_QUEUE[task_id]['aoi'])
+        file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
+        del EE_TASK_MONITORING_QUEUE[task_id]
 
     # If the aoi is too small, less then a pixel, just return
     if aoi.area().getInfo() < 100:
@@ -181,8 +241,8 @@ def ee_task_aoi_split_retry(task_id: str):
     xmax = ee.Number(xmax)
     ymax = ee.Number(ymax)
 
-    num_rows = ee.Number(6)
-    num_cols = ee.Number(6)
+    num_rows = ee.Number(2)
+    num_cols = ee.Number(2)
 
     dx = xmax.subtract(xmin).divide(num_cols)
     dy = ymax.subtract(ymin).divide(num_rows)
@@ -197,7 +257,7 @@ def ee_task_aoi_split_retry(task_id: str):
             aoi = ee.Geometry.Rectangle([x0, y0, x1, y1])
             aoi_list = aoi_list.add(aoi)
 
-    for index in range(36):
+    for index in range(4):
         aoi = ee.Geometry(aoi_list.get(index))
         ccdc_input = ccdc_image_collection_preprocess(aoi)
         ccdc_result = ccdc(ccdc_input, aoi)
@@ -209,36 +269,40 @@ def ee_task_aoi_split_retry(task_id: str):
 def ee_task_monitor():
     waits_empty_times = 0
     while True:
-        if len(EE_TASK_MONITORING_DICT) == 0:
+        if len(EE_TASK_QUEUE) == 0 and len(EE_TASK_MONITORING_QUEUE) == 0:
             waits_empty_times += 1
-            if waits_empty_times > 60:
+            if waits_empty_times > 10:
                 break
             else:
-                time.sleep(1)
+                time.sleep(30)
                 continue
+        elif len(EE_TASK_QUEUE) > 0 and len(EE_TASK_MONITORING_QUEUE) < MAX_PARALLEL_TASKS:
+            start_one_task()
+        else:
+            waits_empty_times = 0
 
-        for task_id in list(EE_TASK_MONITORING_DICT.keys()):
+        for task_id in list(EE_TASK_MONITORING_QUEUE.keys()):
             task = ee.batch.Task(
-                task_id, EE_TASK_MONITORING_DICT[task_id]['type'], EE_TASK_MONITORING_DICT[task_id]['state']
+                task_id, EE_TASK_MONITORING_QUEUE[task_id]['type'], EE_TASK_MONITORING_QUEUE[task_id]['state']
             )
             try:
                 task_status = task.status()
             except Exception as e:
                 print(f'Task {task_id} failed to get status: {e}')
-                time.sleep(0.5)
+                time.sleep(30)
                 continue
             if task_status['state'] == 'COMPLETED':
                 print(f'Task {task_id} completed')
-                with EE_TASK_MONITORING_DICT_LOCK:
-                    del EE_TASK_MONITORING_DICT[task_id]
+                with EE_TASK_MONITORING_QUEUE_LOCK:
+                    del EE_TASK_MONITORING_QUEUE[task_id]
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
                 ee_task_aoi_split_retry(task_id)
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
-                with EE_TASK_MONITORING_DICT_LOCK:
-                    del EE_TASK_MONITORING_DICT[task_id]
-            time.sleep(0.5)
+                with EE_TASK_MONITORING_QUEUE_LOCK:
+                    del EE_TASK_MONITORING_QUEUE[task_id]
+            time.sleep(30)
 
 
 if __name__ == '__main__':
