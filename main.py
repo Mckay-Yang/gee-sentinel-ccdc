@@ -78,6 +78,7 @@ AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstr
 TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 MAX_PARALLEL_TASKS = 1
+CANCLE_TASK_TO_SPLIT = True
 
 
 def _log(self, msg):
@@ -287,6 +288,10 @@ def ee_task_monitor():
                     del EE_TASK_MONITORING_QUEUE[task_id]
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
+                ee_task_aoi_split_retry(task_id)
+            elif CANCLE_TASK_TO_SPLIT and \
+                (task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED'):
+                print(f'Task {task_id} cancelled, try to split aoi')
                 ee_task_aoi_split_retry(task_id)
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':
                 print(f'Task {task_id} cancelled')
