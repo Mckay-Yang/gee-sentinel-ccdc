@@ -108,10 +108,11 @@ def log_err(msg):
 
 
 def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str, attempt: int):
+    aoi_coords = aoi.coordinates()
     with EE_TASK_QUEUE_LOCK:
         EE_TASK_QUEUE.append({
             'task': task,
-            'aoi': aoi,
+            'aoi_coords': aoi_coords,
             'file_name': file_name,
             'attempt': attempt,
         })
@@ -124,11 +125,11 @@ def get_ee_task_queue() -> Optional[dict]:
         return EE_TASK_QUEUE.pop(0)
 
 
-def append_ee_task_monitoring_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str):
+def append_ee_task_monitoring_queue(task: ee.batch.Task, aoi_coords: ee.List, file_name: str, attempt: int):
     with EE_TASK_MONITORING_QUEUE_LOCK:
         EE_TASK_MONITORING_QUEUE[task.id] = {
             # To cut current aoi into smaller pieces
-            'aoi': aoi,
+            'aoi_coords': aoi_coords,
 
             # To get the task info, the three fields are necessary
             'id': task.id,
@@ -136,6 +137,7 @@ def append_ee_task_monitoring_queue(task: ee.batch.Task, aoi: ee.Geometry, file_
             'type': ee.batch.Task.Type(task.status()['task_type']),
 
             'file_name': file_name,
+            'attempt': attempt,
         }
 
 
@@ -204,7 +206,10 @@ def start_one_task():
     task_dict = get_ee_task_queue()
     if task_dict is not None:
         task_dict['task'].start()
-        append_ee_task_monitoring_queue(task_dict['task'], task_dict['aoi'], task_dict['file_name'])
+        append_ee_task_monitoring_queue(
+            task_dict['task'], task_dict['aoi_coords'], task_dict['file_name'], task_dict['attempt']
+        )
+        print(f'Task {task_dict['task'].id} started')
 
 
 def ccdc_main():
@@ -223,17 +228,26 @@ def ccdc_main():
 def ee_task_aoi_split_retry(task_id: str):
     # Get the task info and delete it from the dict
     with EE_TASK_MONITORING_QUEUE_LOCK:
-        aoi = ee.Geometry(EE_TASK_MONITORING_QUEUE[task_id]['aoi'])
+        aoi_coords = ee.List(EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords'])
         file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
         attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
 
     # If the aoi is too small, less then a pixel, just return
-    if aoi.area().getInfo() < 100:
+    if ee.Geometry(aoi_coords).area().getInfo() < 100:
         return
 
     # Split the aoi into smaller pieces
-    xmin, ymin, xmax, ymax = utils.get_aoi_corners(aoi)
+    coords = ee.List(aoi_coords.get(0))
+    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
+    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
+    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
+    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
+
+    xmin = ee.Number(xmin)
+    ymin = ee.Number(ymin)
+    xmax = ee.Number(xmax)
+    ymax = ee.Number(ymax)
 
     num_rows = ee.Number(attempt)
     num_cols = ee.Number(attempt)
