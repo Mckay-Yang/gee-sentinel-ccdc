@@ -107,12 +107,13 @@ def log_err(msg):
     thread = threading.Thread(target=_log_err, args=(msg,)).start()
 
 
-def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str):
+def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str, attempt: int):
     with EE_TASK_QUEUE_LOCK:
         EE_TASK_QUEUE.append({
             'task': task,
             'aoi': aoi,
             'file_name': file_name,
+            'attempt': attempt,
         })
 
 
@@ -186,7 +187,7 @@ def ccdc_result_flaten(ccdc_result: ee.Image) -> ee.Image:
     return ccdc_result_flat
 
 
-def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: str):
+def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: str, attempt: int):
     task = ee.batch.Export.image.toAsset(
         image=ccdc_result_flat,
         description='export_' + file_name,
@@ -196,7 +197,7 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
         maxPixels=1e13,
         crs='EPSG:4326',
     )
-    append_ee_task_queue(task, aoi, file_name)
+    append_ee_task_queue(task, aoi, file_name, attempt)
 
 
 def start_one_task():
@@ -215,7 +216,8 @@ def ccdc_main():
             ccdc_result = ccdc(ccdc_input, aoi)
             ccdc_result_flat = ccdc_result_flaten(ccdc_result)
             file_name = f'ccdc_result_{index}'
-            ccdc_result_export(ccdc_result_flat, aoi, file_name)
+            attempt = 1
+            ccdc_result_export(ccdc_result_flat, aoi, file_name, attempt)
         index += 1
 
 
@@ -224,6 +226,7 @@ def ee_task_aoi_split_retry(task_id: str):
     with EE_TASK_MONITORING_QUEUE_LOCK:
         aoi = ee.Geometry(EE_TASK_MONITORING_QUEUE[task_id]['aoi'])
         file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
+        attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
 
     # If the aoi is too small, less then a pixel, just return
@@ -242,8 +245,8 @@ def ee_task_aoi_split_retry(task_id: str):
     xmax = ee.Number(xmax)
     ymax = ee.Number(ymax)
 
-    num_rows = ee.Number(2)
-    num_cols = ee.Number(2)
+    num_rows = ee.Number(attempt)
+    num_cols = ee.Number(attempt)
 
     dx = xmax.subtract(xmin).divide(num_cols)
     dy = ymax.subtract(ymin).divide(num_rows)
@@ -264,7 +267,7 @@ def ee_task_aoi_split_retry(task_id: str):
         ccdc_result = ccdc(ccdc_input, aoi)
         ccdc_result_flat = ccdc_result_flaten(ccdc_result)
         file_name_cut = f'{file_name}_{index}'
-        ccdc_result_export(ccdc_result_flat, aoi, file_name_cut)
+        ccdc_result_export(ccdc_result_flat, aoi, file_name_cut, attempt)
 
 
 def ee_task_monitor():

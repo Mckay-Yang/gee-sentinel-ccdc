@@ -7,7 +7,6 @@ ee.Initialize(project='ee-yangluhao990714')
 
 aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/downstream_aoi')
 image_collection = ee.ImageCollection('projects/ee-yangluhao990714/assets/ccdc_2nd_12_099')
-
 image = image_collection.mosaic().clip(aoi)
 
 change_info = image.select(
@@ -40,9 +39,12 @@ change_info = image.select(
 )
 
 change_prob = image.select(
-    ['changeProb_0', 'changeProb_1', 'changeProb_2', 'changeProb_3', 'changeProb_4',
-     'changeProb_5', 'changeProb_6', 'changeProb_7', 'changeProb_8', 'changeProb_9',]
+    [
+        'changeProb_0', 'changeProb_1', 'changeProb_2', 'changeProb_3', 'changeProb_4',
+        'changeProb_5', 'changeProb_6', 'changeProb_7', 'changeProb_8', 'changeProb_9',
+    ]
 )
+
 image = change_info.updateMask(change_prob.gt(0.95))
 
 def get_image_intervel(image, interval) -> ee.Image:
@@ -110,7 +112,7 @@ def get_image_intervel(image, interval) -> ee.Image:
     evi_magnitude_mask = evi_magnitude.updateMask(time_mask)
     tcb_magnitude_mask = tcb_magnitude.updateMask(time_mask)
     tcg_magnitude_mask = tcg_magnitude.updateMask(time_mask)
-    tcw_magnitude_mask = tcw_magnitude.updateMask(time_mask) 
+    tcw_magnitude_mask = tcw_magnitude.updateMask(time_mask)
 
     def extract_band(image: ee.Image, band_name) -> ee.Image:
         return image.select(band_name).rename('band')
