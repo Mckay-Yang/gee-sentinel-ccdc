@@ -209,7 +209,7 @@ def start_one_task():
         append_ee_task_monitoring_queue(
             task_dict['task'], task_dict['aoi_coords'], task_dict['file_name'], task_dict['attempt']
         )
-        print('Task', {task_dict['task'].id}, 'started')
+        print('Tasks', task_dict['task'].id, 'started')
 
 
 def ccdc_main():
@@ -233,8 +233,9 @@ def ee_task_aoi_split_retry(task_id: str):
         attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
 
+    prev_aoi = ee.Geometry.Polygon(aoi_coords.get(0))
     # If the aoi is too small, less then a pixel, just return
-    if ee.Geometry(aoi_coords).area().getInfo() < 100:
+    if prev_aoi.area().getInfo() < 100:
         return
 
     # Split the aoi into smaller pieces
