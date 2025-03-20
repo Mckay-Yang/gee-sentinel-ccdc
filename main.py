@@ -265,7 +265,7 @@ def ee_task_aoi_split_retry(task_id: str):
             aoi = ee.Geometry.Rectangle([x0, y0, x1, y1])
             aoi_list = aoi_list.add(aoi)
 
-    for index in range(4):
+    for index in range(attempt ** 2):
         aoi = ee.Geometry(aoi_list.get(index))
         ccdc_input = ccdc_image_collection_preprocess(aoi)
         ccdc_result = ccdc(ccdc_input, aoi)
