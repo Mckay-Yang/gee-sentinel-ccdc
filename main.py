@@ -209,7 +209,7 @@ def start_one_task():
         append_ee_task_monitoring_queue(
             task_dict['task'], task_dict['aoi_coords'], task_dict['file_name'], task_dict['attempt']
         )
-        print(f'Task {task_dict['task'].id} started')
+        print('Task', {task_dict['task'].id}, 'started')
 
 
 def ccdc_main():
