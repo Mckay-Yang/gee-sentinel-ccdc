@@ -7,6 +7,7 @@ from typing import Optional
 import os
 import inspect
 import datetime
+from tqdm import tqdm
 
 ee.Authenticate()
 ee.Initialize(project='ee-yangluhao990714')
@@ -73,12 +74,14 @@ BAND_LIST = ee.List([
 
 
 START_DATE = ee.Date('2015-06-27')
-END_DATE = ee.Date('2025-01-01')
-AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_grid')
-TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
+END_DATE = ee.Date('2026-01-01')
+AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/LangToXirang_grid_0_2')
+# TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 MAX_PARALLEL_TASKS = 1
 CANCLE_TASK_TO_SPLIT = True
+OUTPUT_COLLECTION = 'CCDC/ccdc_4th_12_009'
+SPLIT_BY = 2
 
 
 def _log(self, msg):
@@ -109,10 +112,27 @@ def log_err(msg):
 
 def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str, attempt: int):
     aoi_coords = aoi.coordinates()
+    coords = ee.List(aoi_coords.get(0))
+    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
+    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
+    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
+    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
+
+    xmin = ee.Number(xmin).getInfo()
+    ymin = ee.Number(ymin).getInfo()
+    xmax = ee.Number(xmax).getInfo()
+    ymax = ee.Number(ymax).getInfo()
+
+    while True:
+        with EE_TASK_QUEUE_LOCK:
+            if len(EE_TASK_QUEUE) < 250 :
+                break
+        time.sleep(30)
+
     with EE_TASK_QUEUE_LOCK:
         EE_TASK_QUEUE.append({
             'task': task,
-            'aoi_coords': aoi_coords,
+            'aoi_coords': {'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax},
             'file_name': file_name,
             'attempt': attempt,
         })
@@ -145,7 +165,7 @@ def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
     img_col = IMAGE_COLLECTION.filterBounds(aoi) \
         .filterDate(START_DATE, END_DATE)
     img_col = img_col.map(lambda img: img.clip(aoi))
-    img_col = img_col.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
+    # img_col = img_col.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
     img_col = img_col.remove_clouds()
     img_col = img_col.band_rename()
     img_col = img_col.map(lambda img: img.ndvi())
@@ -154,7 +174,7 @@ def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
     ret = img_col.select(
         ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
     )
-    ret = ret.map(lambda img: img.clip(aoi))
+    # ret = ret.map(lambda img: img.clip(aoi))
     return ret
 
 
@@ -163,7 +183,7 @@ def ccdc(ccdc_input: ee.ImageCollection, aoi: ee.Geometry) -> ee.Image:
         ccdc_input,
         minObservations=12,
         dateFormat=1,
-        chiSquareProbability=0.995,
+        chiSquareProbability=0.99,
         maxIterations=25000,
     )
     return ccdc_result
@@ -193,9 +213,9 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
     task = ee.batch.Export.image.toAsset(
         image=ccdc_result_flat,
         description='export_' + file_name,
-        assetId=f'projects/ee-yangluhao990714/assets/ccdc_2nd_12_0995/{file_name}',
+        assetId=f'projects/ee-yangluhao990714/assets/{OUTPUT_COLLECTION}/{file_name}',
         scale=10,
-        region=aoi,
+        region=aoi.bounds(),
         maxPixels=1e13,
         crs='EPSG:4326',
     )
@@ -209,13 +229,13 @@ def start_one_task():
         append_ee_task_monitoring_queue(
             task_dict['task'], task_dict['aoi_coords'], task_dict['file_name'], task_dict['attempt']
         )
-        print('Tasks', task_dict['task'].id, 'started')
+        print('Task', task_dict['task'].id, 'started')
 
 
 def ccdc_main():
     index = 0
-    for aoi_grid_feature in AOI_GRID.getInfo()['features']:
-        if index in [24, 54]:
+    for aoi_grid_feature in tqdm(AOI_GRID.getInfo()['features']):
+        if index in [134]:
             aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
             ccdc_input = ccdc_image_collection_preprocess(aoi)
             ccdc_result = ccdc(ccdc_input, aoi)
@@ -229,51 +249,62 @@ def ccdc_main():
 def ee_task_aoi_split_retry(task_id: str):
     # Get the task info and delete it from the dict
     with EE_TASK_MONITORING_QUEUE_LOCK:
+        aoi_coords = EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords']
+        file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
+        attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
+        del EE_TASK_MONITORING_QUEUE[task_id]
+
+    xmin = aoi_coords['xmin']
+    ymin = aoi_coords['ymin']
+    xmax = aoi_coords['xmax']
+    ymax = aoi_coords['ymax']
+
+    prev_aoi = ee.Geometry.Polygon([xmin, ymin, xmax, ymax])
+
+    # If the aoi is too small, less then a pixel, just return
+    if prev_aoi.area().getInfo() < 100:
+        return
+
+    num_rows = SPLIT_BY
+    num_cols = SPLIT_BY
+
+    dx = (xmax - xmin) / num_cols
+    dy = (ymax - ymin) / num_rows
+
+    index = 0
+    for row in range(num_rows):
+        for col in range(num_cols):
+            x0 = xmin + (dx * col)
+            y0 = ymin + (dy * row)
+            x1 = x0 + dx
+            y1 = y0 + dy
+            aoi = ee.Geometry.Rectangle([x0, y0, x1, y1])
+            ccdc_input = ccdc_image_collection_preprocess(aoi)
+            ccdc_result = ccdc(ccdc_input, aoi)
+            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+            file_name_cut = f'{file_name}_{index}'
+            ccdc_result_export(ccdc_result_flat, aoi, file_name_cut, attempt)
+            index += 1
+
+
+def ee_task_simply_retry(task_id: str):
+    with EE_TASK_MONITORING_QUEUE_LOCK:
         aoi_coords = ee.List(EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords'])
         file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
         attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
 
-    prev_aoi = ee.Geometry.Polygon(aoi_coords.get(0))
-    # If the aoi is too small, less then a pixel, just return
-    if prev_aoi.area().getInfo() < 100:
-        return
+    xmin = aoi_coords['xmin']
+    ymin = aoi_coords['ymin']
+    xmax = aoi_coords['xmax']
+    ymax = aoi_coords['ymax']
 
-    # Split the aoi into smaller pieces
-    coords = ee.List(aoi_coords.get(0))
-    xmin = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.min())
-    ymin = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.min())
-    xmax = coords.map(lambda p: ee.Number(ee.List(p).get(0))).reduce(ee.Reducer.max())
-    ymax = coords.map(lambda p: ee.Number(ee.List(p).get(1))).reduce(ee.Reducer.max())
+    aoi = ee.Geometry.Polygon([xmin, ymin, xmax, ymax])
+    ccdc_input = ccdc_image_collection_preprocess(aoi)
+    ccdc_result = ccdc(ccdc_input, aoi)
+    ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+    ccdc_result_export(ccdc_result_flat, aoi, file_name, attempt)
 
-    xmin = ee.Number(xmin)
-    ymin = ee.Number(ymin)
-    xmax = ee.Number(xmax)
-    ymax = ee.Number(ymax)
-
-    num_rows = ee.Number(attempt)
-    num_cols = ee.Number(attempt)
-
-    dx = xmax.subtract(xmin).divide(num_cols)
-    dy = ymax.subtract(ymin).divide(num_rows)
-
-    aoi_list = ee.List([])
-    for row in range(num_rows.getInfo()):
-        for col in range(num_cols.getInfo()):
-            x0 = xmin.add(dx.multiply(col))
-            y0 = ymin.add(dy.multiply(row))
-            x1 = x0.add(dx)
-            y1 = y0.add(dy)
-            aoi = ee.Geometry.Rectangle([x0, y0, x1, y1])
-            aoi_list = aoi_list.add(aoi)
-
-    for index in range(attempt ** 2):
-        aoi = ee.Geometry(aoi_list.get(index))
-        ccdc_input = ccdc_image_collection_preprocess(aoi)
-        ccdc_result = ccdc(ccdc_input, aoi)
-        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-        file_name_cut = f'{file_name}_{index}'
-        ccdc_result_export(ccdc_result_flat, aoi, file_name_cut, attempt)
 
 
 def ee_task_monitor():
@@ -307,7 +338,14 @@ def ee_task_monitor():
                     del EE_TASK_MONITORING_QUEUE[task_id]
             elif task_status['state'] == 'FAILED':
                 print(f'Task {task_id} failed')
-                ee_task_aoi_split_retry(task_id)
+                if task_status['error_message'] == 'User memory limit exceeded.':
+                    print(f'{task_id} Error: User memory limit exceeded, attempt to split.')
+                    ee_task_aoi_split_retry(task_id)
+                elif task_status['error_message'] == 'Execution failed; out of memory.':
+                    print(f'{task_id} Error: Execution failed, attempt to retry.')
+                    ee_task_simply_retry(task_id)
+                else:
+                    print(f'Task {task_id} Error: "{task_status["error_message"]}", attempt to skip.')
             elif CANCLE_TASK_TO_SPLIT and \
                 (task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED'):
                 print(f'Task {task_id} cancelled, try to split aoi')
@@ -320,6 +358,6 @@ def ee_task_monitor():
 
 
 if __name__ == '__main__':
-    ccdc_main()
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
+    ccdc_main()
