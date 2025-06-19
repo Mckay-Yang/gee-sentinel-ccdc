@@ -247,23 +247,20 @@ def ccdc_main():
 
 
 def ee_task_aoi_split_retry(task_id: str):
-    # Get the task info and delete it from the dict
     with EE_TASK_MONITORING_QUEUE_LOCK:
         aoi_coords = EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords']
         file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
         attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
 
+    if attempt > 100:
+        print(f'Task[{task_id}] failed {attempt} times, aborting')
+        return
+
     xmin = aoi_coords['xmin']
     ymin = aoi_coords['ymin']
     xmax = aoi_coords['xmax']
     ymax = aoi_coords['ymax']
-
-    prev_aoi = ee.Geometry.Polygon([xmin, ymin, xmax, ymax])
-
-    # If the aoi is too small, less then a pixel, just return
-    if prev_aoi.area().getInfo() < 100:
-        return
 
     num_rows = SPLIT_BY
     num_cols = SPLIT_BY
@@ -289,17 +286,27 @@ def ee_task_aoi_split_retry(task_id: str):
 
 def ee_task_simply_retry(task_id: str):
     with EE_TASK_MONITORING_QUEUE_LOCK:
-        aoi_coords = ee.List(EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords'])
+        aoi_coords = EE_TASK_MONITORING_QUEUE[task_id]['aoi_coords']
         file_name = EE_TASK_MONITORING_QUEUE[task_id]['file_name']
         attempt = EE_TASK_MONITORING_QUEUE[task_id]['attempt'] + 1
         del EE_TASK_MONITORING_QUEUE[task_id]
+
+    if attempt > 100:
+        print(f'Task[{task_id}] failed {attempt} times, aborting')
+        return
 
     xmin = aoi_coords['xmin']
     ymin = aoi_coords['ymin']
     xmax = aoi_coords['xmax']
     ymax = aoi_coords['ymax']
 
-    aoi = ee.Geometry.Polygon([xmin, ymin, xmax, ymax])
+    aoi = ee.Geometry.Polygon([[
+        [xmin, ymin],
+        [xmax, ymin],
+        [xmax, ymax],
+        [xmin, ymax],
+        [xmin, ymin]
+    ]])
     ccdc_input = ccdc_image_collection_preprocess(aoi)
     ccdc_result = ccdc(ccdc_input, aoi)
     ccdc_result_flat = ccdc_result_flaten(ccdc_result)
@@ -346,6 +353,8 @@ def ee_task_monitor():
                     ee_task_simply_retry(task_id)
                 else:
                     print(f'Task {task_id} Error: "{task_status["error_message"]}", attempt to skip.')
+                    with EE_TASK_MONITORING_QUEUE_LOCK:
+                        del EE_TASK_MONITORING_QUEUE[task_id]
             elif CANCLE_TASK_TO_SPLIT and \
                 (task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED'):
                 print(f'Task {task_id} cancelled, try to split aoi')
