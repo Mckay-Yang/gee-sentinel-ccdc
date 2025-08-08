@@ -148,27 +148,34 @@ class _HandlerThread(threading.Thread):
             for index in range(cls.base_band_len):
                 cls.bands_names[basename].append(f'{basename}_{index}')
         threads = []
-        for i in range(cls.max_threads):
+
+        def spawn_one():
             t = _HandlerThread()
+            t.daemon = True
             t.start()
             threads.append(t)
+
+        for _ in range(cls.max_threads):
+            if not cls.ccdc_res_list:
+                break
+            spawn_one()
+        while True:
+            threads = [t for t in threads if t.is_alive()]
+            while cls.ccdc_res_list and len(threads) < cls.max_threads:
+                spawn_one()
+            if not cls.ccdc_res_list and not any(t.is_alive() for t in threads):
+                break
+            time.sleep(0.5)
         for t in threads:
-            t.join()
+            t.join(timeout=0.1)
 
 
 def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_year: int) -> None:
-    assets = ee.data.listAssets(tmp_path)['assets']
-    aoi = ee.FeatureCollection(aoi_path)
-    d = {}
-    for y in range(start_year, end_year + 1):
-        d[y] = []
-        for asset in assets:
-            if asset['name'].split('_')[-1] is f'{y}':
-                d[y].append(ee.Image(asset['name']))
-    for k, v in d.items():
-        year = k
-        ic = ee.ImageCollection(v)
-        img = ic.mosaic()
+    ic = ee.ImageCollection(tmp_path)
+    aoi = ee.FeatureCollection(aoi_path).geometry()
+    for year in range(start_year, end_year + 1):
+        ic_filtered: ee.ImageCollection = ic.filter(ee.Filter.stringEndsWith('system:index', f'_{year}'))
+        img = ic_filtered.mosaic()
         file_name = f'ccdc_result_{year}'
         while True:
             task = ee.batch.Export.image.toAsset(
