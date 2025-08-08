@@ -1,7 +1,7 @@
 import ee
 
 ee.Authenticate()
-ee.Initialize(project='ee-yangluhao990714')
+ee.Initialize(project='project-id')
 
 tasks = ee.data.getTaskList()
 for task in tasks:

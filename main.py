@@ -10,7 +10,7 @@ import datetime
 from tqdm import tqdm
 
 ee.Authenticate()
-ee.Initialize(project='ee-yangluhao990714')
+ee.Initialize(project='project-id')
 
 EE_TASK_MONITORING_QUEUE: dict[dict: dict] = {}
 EE_TASK_MONITORING_QUEUE_LOCK = threading.Lock()
@@ -79,7 +79,7 @@ TP_FOREST_MASK: ee.Image = ee.Image('').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 MAX_PARALLEL_TASKS = 4
 CANCLE_TASK_TO_SPLIT = True
-OUTPUT_COLLECTION = 'CCDC/ccdc_4th_12_009'
+OUTPUT_COLLECTION = 'CCDC/ccdc_res'
 SPLIT_BY = 2
 
 
