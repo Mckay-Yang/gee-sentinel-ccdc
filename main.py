@@ -73,9 +73,9 @@ BAND_LIST = ee.List([
 ])
 
 START_DATE = ee.Date('2015-06-27')
-END_DATE = ee.Date('2026-01-01')
-AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/LangToXirang_grid_0_2')
-# TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
+END_DATE = ee.Date('2025-01-01')
+AOI_GRID = ee.FeatureCollection('')
+TP_FOREST_MASK: ee.Image = ee.Image('').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
 MAX_PARALLEL_TASKS = 4
 CANCLE_TASK_TO_SPLIT = True
@@ -164,7 +164,6 @@ def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
     img_col = IMAGE_COLLECTION.filterBounds(aoi) \
         .filterDate(START_DATE, END_DATE)
     img_col = img_col.map(lambda img: img.clip(aoi))
-    # img_col = img_col.map(lambda img: img.updateMask(TP_FOREST_MASK.clip(aoi)))
     img_col = img_col.remove_clouds()
     img_col = img_col.band_rename()
     img_col = img_col.map(lambda img: img.ndvi())
@@ -173,7 +172,6 @@ def ccdc_image_collection_preprocess(aoi: ee.Geometry) -> ee.ImageCollection:
     ret = img_col.select(
         ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'EVI', 'TCB', 'TCG', 'TCW']
     )
-    # ret = ret.map(lambda img: img.clip(aoi))
     return ret
 
 
@@ -212,7 +210,7 @@ def ccdc_result_export(ccdc_result_flat: ee.Image, aoi: ee.Geometry, file_name: 
     task = ee.batch.Export.image.toAsset(
         image=ccdc_result_flat,
         description='export_' + file_name,
-        assetId=f'projects/ee-yangluhao990714/assets/{OUTPUT_COLLECTION}/{file_name}',
+        assetId=f'',
         scale=10,
         region=aoi.bounds(),
         maxPixels=1e13,
@@ -233,15 +231,14 @@ def start_one_task():
 
 def ccdc_main():
     index = 0
-    for aoi_grid_feature in tqdm(AOI_GRID.getInfo()['features']):
-        if index in [134]:
-            aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
-            ccdc_input = ccdc_image_collection_preprocess(aoi)
-            ccdc_result = ccdc(ccdc_input, aoi)
-            ccdc_result_flat = ccdc_result_flaten(ccdc_result)
-            file_name = f'ccdc_result_{index}'
-            attempt = 1
-            ccdc_result_export(ccdc_result_flat, aoi, file_name, attempt)
+    for aoi_grid_feature in AOI_GRID.getInfo()['features']:
+        aoi = ee.Feature(aoi_grid_feature['geometry']).geometry()
+        ccdc_input = ccdc_image_collection_preprocess(aoi)
+        ccdc_result = ccdc(ccdc_input, aoi)
+        ccdc_result_flat = ccdc_result_flaten(ccdc_result)
+        file_name = f'ccdc_result_{index}'
+        attempt = 1
+        ccdc_result_export(ccdc_result_flat, aoi, file_name, attempt)
         index += 1
 
 
