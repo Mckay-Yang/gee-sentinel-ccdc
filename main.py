@@ -72,13 +72,12 @@ BAND_LIST = ee.List([
     ]}),
 ])
 
-
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2026-01-01')
 AOI_GRID = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/LangToXirang_grid_0_2')
 # TP_FOREST_MASK: ee.Image = ee.Image('projects/ee-yangluhao990714/assets/TP_Forest2015_Five').select(['b1']).neq(0)
 IMAGE_COLLECTION = sentinel_2_l2a = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
-MAX_PARALLEL_TASKS = 1
+MAX_PARALLEL_TASKS = 4
 CANCLE_TASK_TO_SPLIT = True
 OUTPUT_COLLECTION = 'CCDC/ccdc_4th_12_009'
 SPLIT_BY = 2
@@ -125,7 +124,7 @@ def append_ee_task_queue(task: ee.batch.Task, aoi: ee.Geometry, file_name: str, 
 
     while True:
         with EE_TASK_QUEUE_LOCK:
-            if len(EE_TASK_QUEUE) < 250 :
+            if len(EE_TASK_QUEUE) < 250:
                 break
         time.sleep(30)
 
@@ -313,7 +312,6 @@ def ee_task_simply_retry(task_id: str):
     ccdc_result_export(ccdc_result_flat, aoi, file_name, attempt)
 
 
-
 def ee_task_monitor():
     waits_empty_times = 0
     while True:
@@ -356,7 +354,7 @@ def ee_task_monitor():
                     with EE_TASK_MONITORING_QUEUE_LOCK:
                         del EE_TASK_MONITORING_QUEUE[task_id]
             elif CANCLE_TASK_TO_SPLIT and \
-                (task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED'):
+                    (task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED'):
                 print(f'Task {task_id} cancelled, try to split aoi')
                 ee_task_aoi_split_retry(task_id)
             elif task_status['state'] == 'CANCELLED' or task_status['state'] == 'CANCEL_REQUESTED':

@@ -1,225 +1,226 @@
-# import ee
-# import geemap
-# import utils
-#
-# ee.Authenticate()
-# ee.Initialize(project='ee-yangluhao990714')
-#
-# aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_aoi')
-# image_collection = ee.ImageCollection('projects/ee-yangluhao990714/assets/ccdc_2nd_12_099')
-# image = image_collection.mosaic().clip(aoi)
-#
-# change_info = image.select(
-#     [
-#         'tBreak_0',          'tBreak_1',          'tBreak_2',          'tBreak_3',          'tBreak_4',
-#         'tBreak_5',          'tBreak_6',          'tBreak_7',          'tBreak_8',          'tBreak_9',
-#         'Blue_magnitude_0',  'Blue_magnitude_1',  'Blue_magnitude_2',  'Blue_magnitude_3',  'Blue_magnitude_4',
-#         'Blue_magnitude_5',  'Blue_magnitude_6',  'Blue_magnitude_7',  'Blue_magnitude_8',  'Blue_magnitude_9',
-#         'Green_magnitude_0', 'Green_magnitude_1', 'Green_magnitude_2', 'Green_magnitude_3', 'Green_magnitude_4',
-#         'Green_magnitude_5', 'Green_magnitude_6', 'Green_magnitude_7', 'Green_magnitude_8', 'Green_magnitude_9',
-#         'Red_magnitude_0',   'Red_magnitude_1',   'Red_magnitude_2',   'Red_magnitude_3',   'Red_magnitude_4',
-#         'Red_magnitude_5',   'Red_magnitude_6',   'Red_magnitude_7',   'Red_magnitude_8',   'Red_magnitude_9',
-#         'NIR_magnitude_0',   'NIR_magnitude_1',   'NIR_magnitude_2',   'NIR_magnitude_3',   'NIR_magnitude_4',
-#         'NIR_magnitude_5',   'NIR_magnitude_6',   'NIR_magnitude_7',   'NIR_magnitude_8',   'NIR_magnitude_9',
-#         'SWIR1_magnitude_0', 'SWIR1_magnitude_1', 'SWIR1_magnitude_2', 'SWIR1_magnitude_3', 'SWIR1_magnitude_4',
-#         'SWIR1_magnitude_5', 'SWIR1_magnitude_6', 'SWIR1_magnitude_7', 'SWIR1_magnitude_8', 'SWIR1_magnitude_9',
-#         'SWIR2_magnitude_0', 'SWIR2_magnitude_1', 'SWIR2_magnitude_2', 'SWIR2_magnitude_3', 'SWIR2_magnitude_4',
-#         'SWIR2_magnitude_5', 'SWIR2_magnitude_6', 'SWIR2_magnitude_7', 'SWIR2_magnitude_8', 'SWIR2_magnitude_9',
-#         'NDVI_magnitude_0',  'NDVI_magnitude_1',  'NDVI_magnitude_2',  'NDVI_magnitude_3',  'NDVI_magnitude_4',
-#         'NDVI_magnitude_5',  'NDVI_magnitude_6',  'NDVI_magnitude_7',  'NDVI_magnitude_8',  'NDVI_magnitude_9',
-#         'EVI_magnitude_0',   'EVI_magnitude_1',   'EVI_magnitude_2',   'EVI_magnitude_3',   'EVI_magnitude_4',
-#         'EVI_magnitude_5',   'EVI_magnitude_6',   'EVI_magnitude_7',   'EVI_magnitude_8',   'EVI_magnitude_9',
-#         'TCB_magnitude_0',   'TCB_magnitude_1',   'TCB_magnitude_2',   'TCB_magnitude_3',   'TCB_magnitude_4',
-#         'TCB_magnitude_5',   'TCB_magnitude_6',   'TCB_magnitude_7',   'TCB_magnitude_8',   'TCB_magnitude_9',
-#         'TCG_magnitude_0',   'TCG_magnitude_1',   'TCG_magnitude_2',   'TCG_magnitude_3',   'TCG_magnitude_4',
-#         'TCG_magnitude_5',   'TCG_magnitude_6',   'TCG_magnitude_7',   'TCG_magnitude_8',   'TCG_magnitude_9',
-#         'TCW_magnitude_0',   'TCW_magnitude_1',   'TCW_magnitude_2',   'TCW_magnitude_3',   'TCW_magnitude_4',
-#         'TCW_magnitude_5',   'TCW_magnitude_6',   'TCW_magnitude_7',   'TCW_magnitude_8',   'TCW_magnitude_9',
-#     ]
-# )
-#
-# change_prob = image.select(
-#     [
-#         'changeProb_0', 'changeProb_1', 'changeProb_2', 'changeProb_3', 'changeProb_4',
-#         'changeProb_5', 'changeProb_6', 'changeProb_7', 'changeProb_8', 'changeProb_9',
-#     ]
-# )
-# bands_names = change_info.bandNames()
-# image = change_info.select(bands_names.slice(0, 10)).updateMask(change_prob.gt(0.95)) \
-#     .addBands(change_info.select(bands_names.slice(10, 20)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(20, 30)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(30, 40)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(40, 50)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(50, 60)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(60, 70)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(70, 80)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(80, 90)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(90, 100)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(100, 110)).updateMask(change_prob.gt(0.95))) \
-#     .addBands(change_info.select(bands_names.slice(110, 120)).updateMask(change_prob.gt(0.95)))
-#
-# def get_image_intervel(image, interval) -> ee.Image:
-#     image = ee.Image(image)
-#     start_year = interval
-#     end_year = interval + 1
-#     t_break = image.select([
-#         'tBreak_0', 'tBreak_1', 'tBreak_2', 'tBreak_3', 'tBreak_4',
-#         'tBreak_5', 'tBreak_6', 'tBreak_7', 'tBreak_8', 'tBreak_9',
-#     ])
-#     blue_magnitude = image.select([
-#         'Blue_magnitude_0', 'Blue_magnitude_1', 'Blue_magnitude_2', 'Blue_magnitude_3', 'Blue_magnitude_4',
-#         'Blue_magnitude_5', 'Blue_magnitude_6', 'Blue_magnitude_7', 'Blue_magnitude_8', 'Blue_magnitude_9',
-#     ])
-#     green_magnitude = image.select([
-#         'Green_magnitude_0', 'Green_magnitude_1', 'Green_magnitude_2', 'Green_magnitude_3', 'Green_magnitude_4',
-#         'Green_magnitude_5', 'Green_magnitude_6', 'Green_magnitude_7', 'Green_magnitude_8', 'Green_magnitude_9',
-#     ])
-#     red_magnitude = image.select([
-#         'Red_magnitude_0', 'Red_magnitude_1', 'Red_magnitude_2', 'Red_magnitude_3', 'Red_magnitude_4',
-#         'Red_magnitude_5', 'Red_magnitude_6', 'Red_magnitude_7', 'Red_magnitude_8', 'Red_magnitude_9',
-#     ])
-#     nir_magnitude = image.select([
-#         'NIR_magnitude_0', 'NIR_magnitude_1', 'NIR_magnitude_2', 'NIR_magnitude_3', 'NIR_magnitude_4',
-#         'NIR_magnitude_5', 'NIR_magnitude_6', 'NIR_magnitude_7', 'NIR_magnitude_8', 'NIR_magnitude_9',
-#     ])
-#     swir1_magnitude = image.select([
-#         'SWIR1_magnitude_0', 'SWIR1_magnitude_1', 'SWIR1_magnitude_2', 'SWIR1_magnitude_3', 'SWIR1_magnitude_4',
-#         'SWIR1_magnitude_5', 'SWIR1_magnitude_6', 'SWIR1_magnitude_7', 'SWIR1_magnitude_8', 'SWIR1_magnitude_9',
-#     ])
-#     swir2_magnitude = image.select([
-#         'SWIR2_magnitude_0', 'SWIR2_magnitude_1', 'SWIR2_magnitude_2', 'SWIR2_magnitude_3', 'SWIR2_magnitude_4',
-#         'SWIR2_magnitude_5', 'SWIR2_magnitude_6', 'SWIR2_magnitude_7', 'SWIR2_magnitude_8', 'SWIR2_magnitude_9',
-#     ])
-#     ndvi_magnitude = image.select([
-#         'NDVI_magnitude_0', 'NDVI_magnitude_1', 'NDVI_magnitude_2', 'NDVI_magnitude_3', 'NDVI_magnitude_4',
-#         'NDVI_magnitude_5', 'NDVI_magnitude_6', 'NDVI_magnitude_7', 'NDVI_magnitude_8', 'NDVI_magnitude_9',
-#     ])
-#     evi_magnitude = image.select([
-#         'EVI_magnitude_0', 'EVI_magnitude_1', 'EVI_magnitude_2', 'EVI_magnitude_3', 'EVI_magnitude_4',
-#         'EVI_magnitude_5', 'EVI_magnitude_6', 'EVI_magnitude_7', 'EVI_magnitude_8', 'EVI_magnitude_9',
-#     ])
-#     tcb_magnitude = image.select([
-#         'TCB_magnitude_0', 'TCB_magnitude_1', 'TCB_magnitude_2', 'TCB_magnitude_3', 'TCB_magnitude_4',
-#         'TCB_magnitude_5', 'TCB_magnitude_6', 'TCB_magnitude_7', 'TCB_magnitude_8', 'TCB_magnitude_9',
-#     ])
-#     tcg_magnitude = image.select([
-#         'TCG_magnitude_0', 'TCG_magnitude_1', 'TCG_magnitude_2', 'TCG_magnitude_3', 'TCG_magnitude_4',
-#         'TCG_magnitude_5', 'TCG_magnitude_6', 'TCG_magnitude_7', 'TCG_magnitude_8', 'TCG_magnitude_9',
-#     ])
-#     tcw_magnitude = image.select([
-#         'TCW_magnitude_0', 'TCW_magnitude_1', 'TCW_magnitude_2', 'TCW_magnitude_3', 'TCW_magnitude_4',
-#         'TCW_magnitude_5', 'TCW_magnitude_6', 'TCW_magnitude_7', 'TCW_magnitude_8', 'TCW_magnitude_9',
-#     ])
-#
-#     time_mask = t_break.gte(start_year).And(t_break.lt(end_year))
-#     t_break_masked = t_break.updateMask(time_mask)
-#     blue_magnitude_masked = blue_magnitude.updateMask(time_mask)
-#     green_magnitude_masked = green_magnitude.updateMask(time_mask)
-#     red_magnitude_masked = red_magnitude.updateMask(time_mask)
-#     nir_magnitude_masked = nir_magnitude.updateMask(time_mask)
-#     swir1_magnitude_masked = swir1_magnitude.updateMask(time_mask)
-#     swir2_magnitude_masked = swir2_magnitude.updateMask(time_mask)
-#     ndvi_magnitude_masked = ndvi_magnitude.updateMask(time_mask)
-#     evi_magnitude_masked = evi_magnitude.updateMask(time_mask)
-#     tcb_magnitude_masked = tcb_magnitude.updateMask(time_mask)
-#     tcg_magnitude_masked = tcg_magnitude.updateMask(time_mask)
-#     tcw_magnitude_masked = tcw_magnitude.updateMask(time_mask)
-#
-#     def extract_band(image: ee.Image) -> ee.Image:
-#         def extract_band_inner(image: ee.Image, band_name) -> ee.Image:
-#             return image.select(band_name).rename('band')
-#         image_extracted = image.bandNames().map(lambda band_name: extract_band_inner(image, ee.String(band_name)))
-#         image_collection = ee.ImageCollection(image_extracted)
-#         image_combine = image_collection.median()
-#         return image_combine
-#
-#     return extract_band(t_break_masked).rename(f'tBreak_{start_year}')                           \
-#         .addBands(extract_band(blue_magnitude_masked).rename(f'Blue_magnitude_{start_year}'))    \
-#         .addBands(extract_band(green_magnitude_masked).rename(f'Green_magnitude_{start_year}'))  \
-#         .addBands(extract_band(red_magnitude_masked).rename(f'Red_magnitude_{start_year}'))      \
-#         .addBands(extract_band(nir_magnitude_masked).rename(f'NIR_magnitude_{start_year}'))      \
-#         .addBands(extract_band(swir1_magnitude_masked).rename(f'SWIR1_magnitude_{start_year}'))  \
-#         .addBands(extract_band(swir2_magnitude_masked).rename(f'SWIR2_magnitude_{start_year}'))  \
-#         .addBands(extract_band(ndvi_magnitude_masked).rename(f'NDVI_magnitude_{start_year}'))    \
-#         .addBands(extract_band(evi_magnitude_masked).rename(f'EVI_magnitude_{start_year}'))      \
-#         .addBands(extract_band(tcb_magnitude_masked).rename(f'TCB_magnitude_{start_year}'))      \
-#         .addBands(extract_band(tcg_magnitude_masked).rename(f'TCG_magnitude_{start_year}'))      \
-#         .addBands(extract_band(tcw_magnitude_masked).rename(f'TCW_magnitude_{start_year}'))
-#
-#
-#
-# image_combine = get_image_intervel(image, 2015)
-# image_combine = image_combine.addBands(get_image_intervel(image, 2016))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2017))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2018))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2019))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2020))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2021))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2022))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2023))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2024))
-# image_combine = image_combine.addBands(get_image_intervel(image, 2025))
-#
-# def patch_cal(band: ee.Image) -> ee.Image:
-#     image_int = ee.Image(band).multiply(1000).toInt32()
-#     labels = image_int.connectedComponents(
-#         connectedness=ee.Kernel.circle(50),
-#         maxSize=1024,
-#     ).select(['labels'])
-#     patch_size = labels.connectedPixelCount(
-#         maxSize=1024,
-#         eightConnected=False,
-#     )
-#     band = ee.Image(band).updateMask(patch_size.gte(10))
-#     return band
-#
-# list = image_combine.bandNames().map(lambda band_name: patch_cal(image_combine.select([ee.String(band_name)])))
-# image_combine = ee.Image(list.get(0))
-# for i in range(1, 11):
-#     image_combine = image_combine.addBands(list.get(i))
-#
-# geemap.ee_export_image_to_asset(
-#     image=image_combine,
-#     description='ccdc_2nd_12_099_combine',
-#     assetId='projects/ee-yangluhao990714/assets/ccdc_2nd_12_099_combine',
-#     region=aoi.geometry(),
-#     scale=10,
-#     crs='EPSG:4326',
-#     maxPixels=1e13,
-# )
-
 import ee
-from tqdm import tqdm
-
-def del_ee_forder(path: str):
-    assets = ee.data.listAssets(path)
-    assets_dict = assets['assets']
-    assets_dict.append({'name': path})
-    print(f'⚠️deleting folder {path}')
-    for asset in tqdm(assets_dict):
-        ee.data.deleteAsset(asset['name'])
+import threading
+import utils
+import time
 
 
-ee.Authenticate()
-ee.Initialize(project='ee-yangluhao990714')
+class _HandlerThread(threading.Thread):
+    ccdc_res: ee.ImageCollection
+    ccdc_res_list: list
+    res_list_lock = threading.Lock()
+    out_path: str
+    bands_basename = [
+        'tBreak', 'Blue_magnitude', 'Green_magnitude', 'Red_magnitude', 'NIR_magnitude', 'SWIR1_magnitude',
+        'SWIR2_magnitude', 'NDVI_magnitude', 'EVI_magnitude', 'TCB_magnitude', 'TCG_magnitude', 'TCW_magnitude',
+        'changeProb'
+    ]
+    bands_names: dict[str, list[str]]
+    max_threads: int = 1
+    base_band_len: int = 10
+    change_prob_threshold: float = 0.95
+    start_time: time.struct_time
+    end_time: time.struct_time
+    min_patch_size: int = 10
 
-tmp_asset_image_collection_path = 'projects/ee-yangluhao990714/assets/CCDC/ccdc_result_combine_tmp'
-ccdc_result_image_collection_path = 'projects/ee-yangluhao990714/assets/ccdc_2nd_12_099'
-output_path = 'projects/ee-yangluhao990714/assets/CCDC/'
-aoi = ee.FeatureCollection('projects/ee-yangluhao990714/assets/AOIs/downstream_aoi')
+    def __init__(self):
+        super().__init__()
+        pass
 
-bands_basename = [
-    'tBreak', 'Blue_magnitude', 'Green_magnitude', 'Red_magnitude', 'NIR_magnitude', 'SWIR1_magnitude',
-    'SWIR2_magnitude', 'NDVI_magnitude', 'EVI_magnitude', 'TCB_magnitude', 'TCG_magnitude', 'TCW_magnitude',
-]
+    def _is_empty(self) -> bool:
+        with _HandlerThread.res_list_lock:
+            return self.ccdc_res_list == []
 
-try:
-    ee.data.createAsset({'type': ee.data.ASSET_TYPE_IMAGE_COLL}, tmp_asset_image_collection_path)
-except Exception as e:
-    print('⚠️delleting existing folder')
-    del_ee_forder(tmp_asset_image_collection_path)
-    ee.data.createAsset({'type': ee.data.ASSET_TYPE_IMAGE_COLL}, tmp_asset_image_collection_path)
+    def _patch_cal(self, image: ee.Image) -> ee.Image:
+        image_int = ee.Image(image).multiply(1000).toInt32()
+        labels = image_int.connectedComponents(
+            connectedness=ee.Kernel.circle(50),
+            maxSize=1024,
+        ).select(['labels'])
+        patch_size = labels.connectedPixelCount(
+            maxSize=1024,
+            eightConnected=False,
+        )
+        image = ee.Image(image).updateMask(patch_size.gte(self.min_patch_size))
+        return image
+
+    @staticmethod
+    def _get_image_interval(bands: dict[str:ee.Image], year: int) -> ee.Image:
+        start_year = year
+        end_year = year + 1
+        time_mask = bands['tBreak'].gte(start_year).And(bands['tBreak'].lt(end_year))
+
+        def extract_band(image: ee.Image) -> ee.Image:
+            def extract_band_inner(image: ee.Image, band_name) -> ee.Image:
+                return image.select(band_name).rename('band')
+
+            image_extracted = image.bandNames().map(lambda band_name: extract_band_inner(image, ee.String(band_name)))
+            image_collection = ee.ImageCollection(image_extracted)
+            image_combine = image_collection.median()
+            return image_combine
+
+        res_list = []
+        for k, v in bands.items():
+            res_list.append(extract_band(ee.Image(v).updateMask(time_mask)).rename(f'{k}_{start_year}'))
+        res = ee.Image(res_list[0])
+        for it in res_list[1:]:
+            res = res.addBands(ee.Image(it))
+        return res
+
+    def _run_inner(self, image: ee.Image, image_name: str) -> None:
+        start_time = self.start_time.tm_year
+        end_time = self.end_time.tm_year
+        bounds = image.geometry().bounds()
+        change_prob = image.select(self.bands_names['changeProb'])
+        t_break = image.select(self.bands_names['tBreak'])
+        prob_mask = change_prob.gte(self.change_prob_threshold)
+        names_without_change_prob = self.bands_basename.copy()
+        names_without_change_prob.remove('changeProb')
+        masked_bands = {
+            key: image.select(self.bands_names[key]).updateMask(prob_mask)
+            for key in names_without_change_prob
+        }
+        for year in range(start_time, end_time + 1):
+            file_name = f'{image_name}_{year}'
+            cur_image = self._get_image_interval(masked_bands, year)
+            cur_image = self._patch_cal(cur_image)
+            while True:
+                task = ee.batch.Export.image.toAsset(
+                    image=cur_image,
+                    description='export_' + file_name,
+                    assetId=f'{self.out_path}/{file_name}',
+                    scale=10,
+                    maxPixels=1e13,
+                    region=bounds,
+                    crs='EPSG:4326',
+                )
+                if utils.start_task_and_monitoring(task):
+                    break
+
+    def run(self):
+        while not self._is_empty():
+            with self.res_list_lock:
+                res = self.ccdc_res_list.pop(0)
+            image = ee.Image(res['name'])
+            self._run_inner(image, res['name'].split('/')[-1])
+
+    @classmethod
+    def set_attribute(cls, ccdc_res_path: str = None, out_path: str = None, max_threads: int = 1,
+                      change_prob_threshold: float = 0.95, **kwargs):
+        """
+        Args:
+            ccdc_res_path (str):
+            out_path (str):
+            max_threads (int):
+            change_prob_threshold (float):
+            **kwargs:
+
+        Keyword Args:
+            start_time (str):
+            end_time (str):
+            time_format (str):
+            change_prob_threshold (int):
+            min_patch_size (int):
+        """
+        if ccdc_res_path:
+            cls.ccdc_res = ee.ImageCollection(ccdc_res_path)
+        if out_path:
+            cls.out_path = out_path
+        if max_threads:
+            cls.max_threads = max_threads
+        cls.ccdc_res_list = ee.data.listAssets(ccdc_res_path)['assets']
+        cls.change_prob_threshold = change_prob_threshold
+        if kwargs:
+            if 'start_time' in kwargs and 'time_format' in kwargs:
+                cls.start_time = time.strptime(kwargs['start_time'], kwargs['time_format'])
+            if 'end_time' in kwargs and 'time_format' in kwargs:
+                cls.end_time = time.strptime(kwargs['end_time'], kwargs['time_format'])
+            if 'change_prob_threshold' in kwargs:
+                cls.change_prob_threshold = kwargs['change_prob_threshold']
+            if 'min_patch_size' in kwargs:
+                cls.min_patch_size = kwargs['min_patch_size']
+
+    @classmethod
+    def run_all(cls):
+        cls.bands_names = {}
+        for basename in cls.bands_basename:
+            cls.bands_names[basename] = []
+        for basename in cls.bands_basename:
+            for index in range(cls.base_band_len):
+                cls.bands_names[basename].append(f'{basename}_{index}')
+        threads = []
+        for i in range(cls.max_threads):
+            t = _HandlerThread()
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
 
+def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_year: int) -> None:
+    assets = ee.data.listAssets(tmp_path)['assets']
+    aoi = ee.FeatureCollection(aoi_path)
+    d = {}
+    for y in range(start_year, end_year + 1):
+        d[y] = []
+        for asset in assets:
+            if asset['name'].split('_')[-1] is f'{y}':
+                d[y].append(ee.Image(asset['name']))
+    for k, v in d.items():
+        year = k
+        ic = ee.ImageCollection(v)
+        img = ic.mosaic()
+        file_name = f'ccdc_result_{year}'
+        while True:
+            task = ee.batch.Export.image.toAsset(
+                image=img,
+                description='export_' + file_name,
+                assetId=f'{out_path}/{file_name}',
+                scale=10,
+                maxPixels=1e13,
+                region=aoi,
+                crs='EPSG:4326',
+            )
 
-del_ee_forder(ccdc_result_image_collection_path)
+            if utils.start_task_and_monitoring(task):
+                break
+
+
+def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_path: str = None,
+                        max_threads: int = 1, start_year: int = None, end_year: int = None, ):
+    """Handle with CCDC result.
+
+    This method will create max_thread threads to process each CCDC result and temporarily store the outputs in the
+    tmp_path directory. Finally, the results will be mosaicked into a single image and saved to out_path. The tmp_path
+    directory will be automatically created and deleted within the function to ensure it is empty.
+
+    Args:
+        res_path (str): Path to the CCDC result directory or image collection.
+        out_path (str): Path to the output directory.
+        tmp_path (str): Path to the temporary directory or image collection, will be automatically created and deleted
+            within. Defaults to an image collection named tmp under your out_path.
+        max_threads (int): Maximum number of threads to process each CCDC result and temporarily store the output.
+            Defaults to 1.
+        aoi_path (str): Path to the area of interest. Defaults to None. If it's None, won't clip.
+        start_year (int):
+        end_year (int):
+    """
+    if tmp_path is None:
+        tmp_path = rf'{out_path}tmp' if out_path.endswith('/') else rf'{out_path}/tmp'
+    utils.create_ee_image_collection_with_overwrite(tmp_path)
+    _HandlerThread.set_attribute(res_path, tmp_path, max_threads, start_time=f'{start_year}', end_time=f'{end_year}',
+                                 time_format='%Y', )
+    _HandlerThread.run_all()
+    _mosiac(out_path, tmp_path, aoi_path, start_year, end_year)
+    # utils.del_ee_image_collection(tmp_path)
+
+
+if __name__ == '__main__':
+    utils.ee_init()
+    ccdc_result_handler(
+        res_path=r'projects/ee-yangluhao990714/assets/CCDC/ccdc_4th_12_009',
+        out_path=r'projects/ee-yangluhao990714/assets/CCDC/',
+        aoi_path=r'projects/ee-yangluhao990714/assets/AOIs/downstream_aoi',
+        max_threads=4,
+        start_year=2015,
+        end_year=2025,
+    )
