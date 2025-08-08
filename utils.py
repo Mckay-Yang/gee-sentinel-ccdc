@@ -524,14 +524,16 @@ def start_task_and_monitoring(task: ee.batch.Task, sleep_time: int = 30) -> bool
     while True:
         sleep(sleep_time)
         try:
-            status = task.status()['state']
+            status = task.status()
         except ee.EEException as e:
             print(f'Task {task.id} failed to get status: {e}')
             continue
-        if status == 'COMPLETED':
+        if status['state'] == 'COMPLETED':
             print(f'Task {task.id} completed')
             break
-        elif status == 'FAILED':
+        elif status['state'] == 'FAILED':
+            if 'Cannot overwrite asset' in status['error_message']:
+                return True
             print(f'Task {task.id} failed')
             return False
     return True
