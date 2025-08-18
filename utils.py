@@ -503,13 +503,27 @@ def del_ee_image_collection(path: str):
     del_ee_forder(path)
 
 
+def create_ee_image_collection(path: str) -> None:
+    """Create an EE image collection
+    If image collection already exists, will skip it.
+
+    Args:
+        path (str): EE path to be created.
+    """
+    try:
+        ee.data.createAsset({'type': ee.data.ASSET_TYPE_IMAGE_COLL}, path)
+    except ee.EEException as e:
+        print(e)
+        return
+
+
 def create_ee_image_collection_with_overwrite(path: str):
     """Create an EE image collection with overwritten mode.
 
     If image collection already exists, delete and recreate it.
 
     Args:
-        path (str): EE path to be created:
+        path (str): EE path to be created.
     """
     try:
         ee.data.createAsset({'type': ee.data.ASSET_TYPE_IMAGE_COLL}, path)

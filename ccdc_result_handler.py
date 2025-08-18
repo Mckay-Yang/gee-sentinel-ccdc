@@ -9,6 +9,7 @@ class _HandlerThread(threading.Thread):
     ccdc_res_list: list
     res_list_lock = threading.Lock()
     out_path: str
+    out_path_exists_list: list
     bands_basename = [
         'tBreak', 'Blue_magnitude', 'Green_magnitude', 'Red_magnitude', 'NIR_magnitude', 'SWIR1_magnitude',
         'SWIR2_magnitude', 'NDVI_magnitude', 'EVI_magnitude', 'TCB_magnitude', 'TCG_magnitude', 'TCW_magnitude',
@@ -44,7 +45,7 @@ class _HandlerThread(threading.Thread):
         return image
 
     @staticmethod
-    def _get_image_interval(bands: dict[str:ee.Image], year: int) -> ee.Image:
+    def _get_image_interval(bands: dict, year: int) -> ee.Image:
         start_year = year
         end_year = year + 1
         time_mask = bands['tBreak'].gte(start_year).And(bands['tBreak'].lt(end_year))
@@ -81,13 +82,16 @@ class _HandlerThread(threading.Thread):
         }
         for year in range(start_time, end_time + 1):
             file_name = f'{image_name}_{year}'
+            asset_id =f'{self.out_path}/{file_name}'
+            if file_name in self.out_path_exists_list:
+                continue
             cur_image = self._get_image_interval(masked_bands, year)
             cur_image = self._patch_cal(cur_image)
             while True:
                 task = ee.batch.Export.image.toAsset(
                     image=cur_image,
                     description='export_' + file_name,
-                    assetId=f'{self.out_path}/{file_name}',
+                    assetId= asset_id,
                     scale=10,
                     maxPixels=1e13,
                     region=bounds,
@@ -128,6 +132,7 @@ class _HandlerThread(threading.Thread):
         if max_threads:
             cls.max_threads = max_threads
         cls.ccdc_res_list = ee.data.listAssets(ccdc_res_path)['assets']
+        cls.out_path_exists_list = [item['name'].split('/')[-1] for item in ee.data.listAssets(out_path)['assets']]
         cls.change_prob_threshold = change_prob_threshold
         if kwargs:
             if 'start_time' in kwargs and 'time_format' in kwargs:
@@ -172,28 +177,43 @@ class _HandlerThread(threading.Thread):
 
 def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_year: int) -> None:
     ic = ee.ImageCollection(tmp_path)
-    aoi = ee.FeatureCollection(aoi_path).geometry()
+    res_exists_l = [item['name'].split('/')[-1] for item in ee.data.listAssets(out_path)['assets']]
+    if aoi_path:
+        aoi = ee.FeatureCollection(aoi_path).geometry()
+    else:
+        aoi = ic.geometry().bounds()
+    try:
+        existing = ee.data.listAssets(out_path).get('assets', [])
+        existing_names = {item['name'].split('/')[-1] for item in existing}
+    except Exception:
+        existing_names = set()
     for year in range(start_year, end_year + 1):
-        ic_filtered: ee.ImageCollection = ic.filter(ee.Filter.stringEndsWith('system:index', f'_{year}'))
-        img = ic_filtered.mosaic()
         file_name = f'ccdc_result_{year}'
+        if file_name in existing_names:
+            continue
+        subset = ic.filter(ee.Filter.stringEndsWith('system:index', f'_{year}')).sort('system:index')
+        if ee.Number(subset.size()).eq(0).getInfo():
+            continue
+        img = subset.mosaic().set({'year': year})
+        asset_id = f'{out_path}{file_name}' if out_path.endswith('/') else f'{out_path}/{file_name}'
+        if file_name in res_exists_l:
+            continue
         while True:
             task = ee.batch.Export.image.toAsset(
                 image=img,
                 description='export_' + file_name,
-                assetId=f'{out_path}/{file_name}',
+                assetId=asset_id,
                 scale=10,
                 maxPixels=1e13,
                 region=aoi,
                 crs='EPSG:4326',
             )
-
             if utils.start_task_and_monitoring(task):
                 break
 
 
 def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_path: str = None,
-                        max_threads: int = 1, start_year: int = None, end_year: int = None, ):
+                        max_threads: int = 1, start_year: int = None, end_year: int = None, overwrite = False) -> None:
     """Handle with CCDC result.
 
     This method will create max_thread threads to process each CCDC result and temporarily store the outputs in the
@@ -213,7 +233,10 @@ def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_
     """
     if tmp_path is None:
         tmp_path = rf'{out_path}tmp' if out_path.endswith('/') else rf'{out_path}/tmp'
-    utils.create_ee_image_collection_with_overwrite(tmp_path)
+    if overwrite:
+        utils.create_ee_image_collection_with_overwrite(tmp_path)
+    else :
+        utils.create_ee_image_collection(tmp_path)
     _HandlerThread.set_attribute(res_path, tmp_path, max_threads, start_time=f'{start_year}', end_time=f'{end_year}',
                                  time_format='%Y', )
     _HandlerThread.run_all()
