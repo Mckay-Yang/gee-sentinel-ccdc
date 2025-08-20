@@ -249,9 +249,9 @@ def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_
 if __name__ == '__main__':
     utils.ee_init()
     ccdc_result_handler(
-        res_path=r'projects/ee-yangluhao990714/assets/CCDC/ccdc_4th_12_009',
-        out_path=r'projects/ee-yangluhao990714/assets/CCDC/ccdc_final_res',
-        aoi_path=r'projects/ee-yangluhao990714/assets/AOIs/LangToBasighat',
+        res_path=r'path',
+        out_path=r'path',
+        aoi_path=r'path',
         max_threads=4,
         start_year=2015,
         end_year=2025,

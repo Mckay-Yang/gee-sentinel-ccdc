@@ -11,11 +11,11 @@ from typing import Literal
 from time import sleep
 
 
-def ee_init(project: str = 'ee-yangluhao990714'):
+def ee_init(project: str):
     """Initialize EE project.
 
     Args:
-        project (str): Project name. Defaults to 'ee-yangluhao990714'.
+        project (str): Project name.'.
     """
     ee.Authenticate()
     ee.Initialize(project=project)

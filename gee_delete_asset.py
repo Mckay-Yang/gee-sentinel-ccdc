@@ -1,9 +1,10 @@
 import ee
 
 ee.Authenticate()
-ee.Initialize(project='ee-yangluhao990714')
+ee.Initialize(project='project-id')
 
-assets = ee.data.listAssets(params='projects/ee-yangluhao990714/assets/CCDC/ccdc_final_res')
+assets = ee.data.listAssets(params='asset-id-to-delete')
+
 for asset in assets['assets']:
     if f'ccdc_result_' in asset['name']:
         print(asset['name'])
