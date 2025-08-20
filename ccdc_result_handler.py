@@ -189,6 +189,7 @@ def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_ye
         existing_names = set()
     for year in range(start_year, end_year + 1):
         file_name = f'ccdc_result_{year}'
+        year_int = int(year)
         if file_name in existing_names:
             continue
         subset = ic.filter(ee.Filter.stringEndsWith('system:index', f'_{year}')).sort('system:index')
@@ -196,20 +197,21 @@ def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_ye
             continue
         img = subset.mosaic().set({'year': year})
         asset_id = f'{out_path}{file_name}' if out_path.endswith('/') else f'{out_path}/{file_name}'
+        time_start = ee.Date(f'{year}-01-01T00:00:00')
+        time_end = ee.Date(f'{year + 1}-1-1T00:00:00')
+        img = img.set('system:time_start', time_start.millis()).set('system:time_end', time_end.millis())
         if file_name in res_exists_l:
             continue
-        while True:
-            task = ee.batch.Export.image.toAsset(
-                image=img,
-                description='export_' + file_name,
-                assetId=asset_id,
-                scale=10,
-                maxPixels=1e13,
-                region=aoi,
-                crs='EPSG:4326',
-            )
-            if utils.start_task_and_monitoring(task):
-                break
+        task = ee.batch.Export.image.toAsset(
+            image=img,
+            description='export_' + file_name,
+            assetId=asset_id,
+            scale=10,
+            maxPixels=1e13,
+            region=aoi,
+            crs='EPSG:4326',
+        )
+        task.start()
 
 
 def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_path: str = None,
@@ -248,8 +250,8 @@ if __name__ == '__main__':
     utils.ee_init()
     ccdc_result_handler(
         res_path=r'projects/ee-yangluhao990714/assets/CCDC/ccdc_4th_12_009',
-        out_path=r'projects/ee-yangluhao990714/assets/CCDC/',
-        aoi_path=r'projects/ee-yangluhao990714/assets/AOIs/downstream_aoi',
+        out_path=r'projects/ee-yangluhao990714/assets/CCDC/ccdc_final_res',
+        aoi_path=r'projects/ee-yangluhao990714/assets/AOIs/LangToBasighat',
         max_threads=4,
         start_year=2015,
         end_year=2025,
