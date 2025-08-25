@@ -1,0 +1,8 @@
+name: ccdc
+channels:
+  - conda-forge
+dependencies:
+  - earthengine-api
+  - python=3.11
+  - tqdm
+prefix: /opt/homebrew/Caskroom/miniforge/base/envs/ccdc
