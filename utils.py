@@ -217,17 +217,19 @@ def _sentinel_2_msi_multispectral_instrument_level_1c_band_rename(image: ee.Imag
     return image.select(band_rename_dic.keys()).rename(band_rename_dic.values())
 
 
-def band_rename(self) -> ee.ImageCollection:
+def band_rename(self, collection_title) -> ee.ImageCollection:
     """Rename bands of the input image collection.
+
+    Args:
+        collection_title (str):
 
     Returns:
         ee.ImageCollection:
     """
-    collection_title = self.getInfo()['properties']['title']
     match collection_title:
-        case 'Sentinel-2 MSI: MultiSpectral Instrument, Level-2A':
+        case 'COPERNICUS/S2_SR_HARMONIZED':
             self = self.map(lambda img: _sentinel_2_msi_multispectral_instrument_level_2a_band_rename(img))
-        case 'Sentinel-2 MSI: MultiSpectral Instrument, Level-1C':
+        case 'COPERNICUS/S2_HARMONIZED':
             self = self.map(lambda img: img.addBands(
                 _sentinel_2_msi_multispectral_instrument_level_1c_band_rename(img)
             ))
@@ -239,30 +241,51 @@ def band_rename(self) -> ee.ImageCollection:
 ee.ImageCollection.band_rename = band_rename
 
 
-def remove_clouds(self) -> ee.ImageCollection:
+def remove_clouds(self, collection_title) -> ee.ImageCollection:
     """Remove clouds from the input image collection.
+
+    Args:
+        collection_title (str):
 
     Returns:
         ee.ImageCollection:
     """
-    collection_title = self.getInfo()['properties']['title']
     match collection_title:
-        case 'Sentinel-2 MSI: MultiSpectral Instrument, Level-2A':
-            self = self.map(lambda img: ee.Algorithms.If(img.date().millis().gte(ee.Date('2022-01-25').millis()).Or(
-                img.date().millis().gte(ee.Date('2024-02-28').millis())),
-                img.updateMask(img.select('CLD_PRB').lt(40)),
-                img.updateMask(img.select('QA').bitwiseAnd(1 << 10).eq(0).And(
-                    img.select('QA').bitwiseAnd(1 << 11).eq(0)))
-            )
-                            )
-        case 'Sentinel-2 MSI: MultiSpectral Instrument, Level-1C':
-            self = self.map(lambda img: img.updateMask(ee.Algorithms.Sentinel2.CDI(img)))
+        case 'COPERNICUS/S2_SR_HARMONIZED':
+            cloud_collection = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+            self = self.map(lambda img: img.updateMask(cloud_collection.filter(ee.Filter.eq("system:index", img.get("system:index"))).first().select("cs").gt(0.5)))
+        case 'COPERNICUS/S2_HARMONIZED':
+            cloud_collection = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+            self = self.map(lambda img: img.updateMask(cloud_collection.filter(ee.Filter.eq("system:index", img.get("system:index"))).first().select("cs").gt(0.5)))
         case _:
             print(f'The input image collection [{collection_title}] is not supported.')
     return self
 
 
 ee.ImageCollection.remove_clouds = remove_clouds
+
+
+def _find_id_constant_value(node, strict: bool = True):
+    if isinstance(node, dict):
+        # Check the current dict first
+        args = node.get('arguments')
+        if isinstance(args, dict):
+            id_node = args.get('id')
+            if isinstance(id_node, dict) and 'constantValue' in id_node:
+                if not strict or node.get('functionName') == 'ImageCollection.load':
+                    return id_node['constantValue']
+        # Recurse into children
+        for v in node.values():
+            hit = _find_id_constant_value(v, strict=strict)
+            if hit is not None:
+                return hit
+    elif isinstance(node, list):
+        for item in node:
+            hit = _find_id_constant_value(item, strict=strict)
+            if hit is not None:
+                return hit
+    return None
+
 
 
 def _quarterly_composite(self, start_date: ee.Date, end_date: ee.Date) -> ee.ImageCollection:
@@ -364,7 +387,7 @@ def temporal_composite(self, start_date: ee.Date, end_date: ee.Date,
         start_date (ee.Date):
         end_date (ee.Date):
         temporal_resolution (Literal['quarterly', 'monthly', 'annual']):
-        
+
     Returns:
         ee.ImageCollection:
     """
@@ -433,7 +456,7 @@ def date_to_year(date: str, fmt: str = '%Y-%m-%dT%H:%M:%S') -> float:
 
     Returns:
         float:
-    
+
     See Also:
         datetime.datetime.strptime()
 
@@ -463,7 +486,7 @@ def year_to_date(year: float, fmt: str = '%Y-%m-%dT%H:%M:%S') -> str:
 
     Returns:
         str: The corresponding date string.
-        
+
     Examples:
         >>> year_to_date(2021.4139269723491, '%Y-%m-%d')
         '2021-06-01'

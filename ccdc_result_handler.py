@@ -12,8 +12,7 @@ class _HandlerThread(threading.Thread):
     out_path_exists_list: list
     bands_basename = [
         'tBreak', 'Blue_magnitude', 'Green_magnitude', 'Red_magnitude', 'NIR_magnitude', 'SWIR1_magnitude',
-        'SWIR2_magnitude', 'NDVI_magnitude', 'EVI_magnitude', 'TCB_magnitude', 'TCG_magnitude', 'TCW_magnitude',
-        'changeProb'
+        'SWIR2_magnitude', 'changeProb'
     ]
     bands_names: dict[str, list[str]]
     max_threads: int = 1
@@ -21,7 +20,7 @@ class _HandlerThread(threading.Thread):
     change_prob_threshold: float = 0.95
     start_time: time.struct_time
     end_time: time.struct_time
-    min_patch_size: int = 10
+    min_patch_size: int = 16
 
     def __init__(self):
         super().__init__()
@@ -32,14 +31,14 @@ class _HandlerThread(threading.Thread):
             return self.ccdc_res_list == []
 
     def _patch_cal(self, image: ee.Image) -> ee.Image:
-        image_int = ee.Image(image).multiply(1000).toInt32()
+        image_int = ee.Image(image).select('tBreak').toInt32()
         labels = image_int.connectedComponents(
-            connectedness=ee.Kernel.circle(50),
+            connectedness=ee.Kernel.circle(1),
             maxSize=1024,
         ).select(['labels'])
         patch_size = labels.connectedPixelCount(
             maxSize=1024,
-            eightConnected=False,
+            eightConnected=True,
         )
         image = ee.Image(image).updateMask(patch_size.gte(self.min_patch_size))
         return image
@@ -61,7 +60,7 @@ class _HandlerThread(threading.Thread):
 
         res_list = []
         for k, v in bands.items():
-            res_list.append(extract_band(ee.Image(v).updateMask(time_mask)).rename(f'{k}_{start_year}'))
+            res_list.append(extract_band(ee.Image(v).updateMask(time_mask)).rename(f'{k}'))
         res = ee.Image(res_list[0])
         for it in res_list[1:]:
             res = res.addBands(ee.Image(it))
@@ -74,15 +73,13 @@ class _HandlerThread(threading.Thread):
         change_prob = image.select(self.bands_names['changeProb'])
         t_break = image.select(self.bands_names['tBreak'])
         prob_mask = change_prob.gte(self.change_prob_threshold)
-        names_without_change_prob = self.bands_basename.copy()
-        names_without_change_prob.remove('changeProb')
         masked_bands = {
             key: image.select(self.bands_names[key]).updateMask(prob_mask)
-            for key in names_without_change_prob
+            for key in self.bands_basename
         }
         for year in range(start_time, end_time + 1):
             file_name = f'{image_name}_{year}'
-            asset_id =f'{self.out_path}/{file_name}'
+            asset_id =f'{self.out_path}{file_name}' if self.out_path.endswith('/') else f'{self.out_path}/{file_name}'
             if file_name in self.out_path_exists_list:
                 continue
             cur_image = self._get_image_interval(masked_bands, year)
@@ -215,7 +212,7 @@ def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_ye
 
 
 def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_path: str = None,
-                        max_threads: int = 1, start_year: int = None, end_year: int = None, overwrite = False) -> None:
+                        max_threads: int = 1, start_year: int = None, end_year: int = None) -> None:
     """Handle with CCDC result.
 
     This method will create max_thread threads to process each CCDC result and temporarily store the outputs in the
@@ -226,24 +223,19 @@ def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_
         res_path (str): Path to the CCDC result directory or image collection.
         out_path (str): Path to the output directory.
         tmp_path (str): Path to the temporary directory or image collection, will be automatically created and deleted
-            within. Defaults to an image collection named tmp under your out_path.
+            within.
         max_threads (int): Maximum number of threads to process each CCDC result and temporarily store the output.
             Defaults to 1.
         aoi_path (str): Path to the area of interest. Defaults to None. If it's None, won't clip.
         start_year (int):
         end_year (int):
     """
-    if tmp_path is None:
-        tmp_path = rf'{out_path}tmp' if out_path.endswith('/') else rf'{out_path}/tmp'
-    if overwrite:
-        utils.create_ee_image_collection_with_overwrite(tmp_path)
-    else :
-        utils.create_ee_image_collection(tmp_path)
+    res_path = res_path.rstrip('/')
+    out_path = out_path.rstrip('/')
     _HandlerThread.set_attribute(res_path, tmp_path, max_threads, start_time=f'{start_year}', end_time=f'{end_year}',
                                  time_format='%Y', )
     _HandlerThread.run_all()
     _mosiac(out_path, tmp_path, aoi_path, start_year, end_year)
-    # utils.del_ee_image_collection(tmp_path)
 
 
 if __name__ == '__main__':
