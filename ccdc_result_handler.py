@@ -211,6 +211,18 @@ def _mosiac(out_path: str, tmp_path: str, aoi_path: str, start_year: int, end_ye
         task.start()
 
 
+def _fill_tmp_finished(res_path: str, tmp_path: str, start_year: int, end_year: int) -> bool:
+    ret = True
+    raw_list = [item['name'].split('/')[-1] for item in ee.data.listAssets(res_path)['assets']]
+    tmp_list = [item['name'].split('/')[-1] for item in ee.data.listAssets(tmp_path)['assets']]
+    for item in raw_list:
+        for year in range(start_year, end_year + 1):
+            if f'{item}_{year}' not in tmp_list:
+                print(f'{item}_{year} is missing')
+                ret = False
+    return ret
+
+
 def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_path: str = None,
                         max_threads: int = 1, start_year: int = None, end_year: int = None) -> None:
     """Handle with CCDC result.
@@ -232,19 +244,21 @@ def ccdc_result_handler(res_path: str, out_path: str, tmp_path: str = None, aoi_
     """
     res_path = res_path.rstrip('/')
     out_path = out_path.rstrip('/')
-    _HandlerThread.set_attribute(res_path, tmp_path, max_threads, start_time=f'{start_year}', end_time=f'{end_year}',
-                                 time_format='%Y', )
-    _HandlerThread.run_all()
+    while not _fill_tmp_finished(res_path, tmp_path, start_year, end_year):
+        _HandlerThread.set_attribute(res_path, tmp_path, max_threads, start_time=f'{start_year}', end_time=f'{end_year}',
+                                     time_format='%Y', )
+        _HandlerThread.run_all()
     _mosiac(out_path, tmp_path, aoi_path, start_year, end_year)
 
 
 if __name__ == '__main__':
-    utils.ee_init()
+    utils.ee_init(project='project_id')
     ccdc_result_handler(
-        res_path=r'path',
-        out_path=r'path',
-        aoi_path=r'path',
-        max_threads=4,
+        res_path='projects/project_id/assets/CCDC/ccdc_raw',
+        out_path='users/yangluhao990714/ccdc_results/ccdc_5th',
+        tmp_path='projects/project_id/assets/CCDC/final_18_0999_tmp',
+        aoi_path='projects/project_id/assets/AOIs/aoi',
+        max_threads=8,
         start_year=2015,
         end_year=2025,
     )
