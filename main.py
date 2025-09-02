@@ -40,6 +40,7 @@ BAND_LIST = ee.List([
 START_DATE = ee.Date('2015-06-27')
 END_DATE = ee.Date('2025-01-01')
 AOI_GRID = ee.FeatureCollection('')
+END_DATE = ee.Date('2025-08-21')
 TP_FOREST_MASK: ee.Image = ee.Image('').select(['b1']).neq(0)
 COLLECTION_TITLE = 'COPERNICUS/S2_HARMONIZED'
 IMAGE_COLLECTION = ee.ImageCollection(COLLECTION_TITLE)
@@ -248,13 +249,7 @@ def ee_task_simply_retry(task_id: str):
     xmax = aoi_coords['xmax']
     ymax = aoi_coords['ymax']
 
-    aoi = ee.Geometry.Polygon([[
-        [xmin, ymin],
-        [xmax, ymin],
-        [xmax, ymax],
-        [xmin, ymax],
-        [xmin, ymin]
-    ]])
+    aoi = ee.Geometry.Polygon([[[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax], [xmin, ymin]]])
     ccdc_input = ccdc_image_collection_preprocess(aoi)
     ccdc_result = ccdc(ccdc_input, aoi)
     ccdc_result_flat = ccdc_result_flaten(ccdc_result)
@@ -316,3 +311,7 @@ if __name__ == '__main__':
     task_monitor_thread = threading.Thread(target=ee_task_monitor)
     task_monitor_thread.start()
     ccdc_main()
+    ccdc_result_handler(res_path='projects/project_id/assets/CCDC/ccdc_raw',
+        out_path='users/yangluhao990714/ccdc_results/ccdc_5th',
+        tmp_path='projects/project_id/assets/CCDC/final_18_0999_tmp', aoi_path='projects/project_id/assets/AOIs/aoi',
+        max_threads=8, start_year=2015, end_year=2025, )
