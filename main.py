@@ -38,9 +38,8 @@ BAND_LIST = ee.List([
 ])
 
 START_DATE = ee.Date('2015-06-27')
-END_DATE = ee.Date('2025-01-01')
-AOI_GRID = ee.FeatureCollection('')
 END_DATE = ee.Date('2025-08-21')
+AOI_GRID = ee.FeatureCollection('projects/project-id/assets/AOIs/aoi')
 TP_FOREST_MASK: ee.Image = ee.Image('').select(['b1']).neq(0)
 COLLECTION_TITLE = 'COPERNICUS/S2_HARMONIZED'
 IMAGE_COLLECTION = ee.ImageCollection(COLLECTION_TITLE)
